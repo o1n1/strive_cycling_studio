@@ -19,6 +19,7 @@ export interface SalonData {
 }
 
 export interface EspacioData {
+  id?: string
   salon_id: string
   numero: number
   tipo_equipo: string

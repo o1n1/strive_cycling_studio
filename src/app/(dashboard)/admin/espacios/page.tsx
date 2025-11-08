@@ -4,6 +4,9 @@ import { DashboardBackground } from '@/components/ui/DashboardBackground'
 import { SalonCard } from '@/components/espacios/SalonCard'
 import { obtenerSalones, obtenerEstadisticasSalon } from '@/lib/actions/espacios-actions'
 
+// Forzar renderizado dinámico (usa cookies para auth)
+export const dynamic = 'force-dynamic'
+
 // ============================================================================
 // PÁGINA - LISTA DE SALONES
 // ============================================================================
@@ -27,7 +30,8 @@ async function SalonesContent() {
 
   // Obtener estadísticas de cada salón
   const salonesConEstadisticas = await Promise.all(
-    salones.map(async (salon: any) => {
+    salones.map(async (salon) => {
+      if (!salon.id) return null
       const stats = await obtenerEstadisticasSalon(salon.id)
       return {
         id: salon.id,
@@ -41,7 +45,7 @@ async function SalonesContent() {
         espaciosDisponibles: stats.data?.disponibles || 0
       }
     })
-  )
+  ).then(results => results.filter((r): r is NonNullable<typeof r> => r !== null))
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

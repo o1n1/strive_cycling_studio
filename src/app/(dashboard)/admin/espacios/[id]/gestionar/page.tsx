@@ -1,17 +1,16 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { DashboardBackground } from '@/components/ui/DashboardBackground'
 import { EspaciosGrid } from '@/components/espacios/EspaciosGrid'
 import type { EstadoEspacio } from '@/lib/types/enums'
+import type { SalonData, EspacioData } from '@/lib/actions/espacios-actions'
 import { 
   obtenerSalonPorId, 
   obtenerEspaciosPorSalon,
-  crearEspacio,
-  eliminarEspacio
+  crearEspacio
 } from '@/lib/actions/espacios-actions'
 
 interface Props {
@@ -19,15 +18,13 @@ interface Props {
 }
 
 export default function GestionarEspaciosPage({ params }: Props) {
-  const router = useRouter()
-  const [salon, setSalon] = useState<any>(null)
-  const [espacios, setEspacios] = useState<any[]>([])
+  const [salon, setSalon] = useState<SalonData | null>(null)
+  const [espacios, setEspacios] = useState<EspacioData[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [procesando, setProcesando] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Estado del formulario de nuevo espacio
   const [nuevoEspacio, setNuevoEspacio] = useState({
     numero: 1,
     tipo_equipo: 'bici',
@@ -38,12 +35,7 @@ export default function GestionarEspaciosPage({ params }: Props) {
     usos_para_mantenimiento: 100
   })
 
-  // Cargar datos iniciales
-  useEffect(() => {
-    cargarDatos()
-  }, [params.id])
-
-  const cargarDatos = async () => {
+  const cargarDatos = useCallback(async () => {
     setLoading(true)
     setError(null)
 
@@ -67,12 +59,15 @@ export default function GestionarEspaciosPage({ params }: Props) {
     setSalon(resultadoSalon.data)
     setEspacios(resultadoEspacios.data || [])
     
-    // Calcular siguiente número disponible
     const maxNumero = Math.max(0, ...(resultadoEspacios.data || []).map(e => e.numero))
     setNuevoEspacio(prev => ({ ...prev, numero: maxNumero + 1 }))
     
     setLoading(false)
-  }
+  }, [params.id])
+
+  useEffect(() => {
+    cargarDatos()
+  }, [cargarDatos])
 
   const handleAgregarEspacio = async () => {
     setProcesando(true)
@@ -96,7 +91,6 @@ export default function GestionarEspaciosPage({ params }: Props) {
     setShowModal(false)
     setProcesando(false)
     
-    // Reset form
     setNuevoEspacio({
       numero: espacios.length + 1,
       tipo_equipo: 'bici',
@@ -106,24 +100,6 @@ export default function GestionarEspaciosPage({ params }: Props) {
       usos_desde_mantenimiento: 0,
       usos_para_mantenimiento: 100
     })
-  }
-
-  const handleEliminarEspacio = async (id: string) => {
-    if (!confirm('¿Estás seguro de eliminar este espacio? Esta acción no se puede deshacer.')) {
-      return
-    }
-
-    setProcesando(true)
-    const resultado = await eliminarEspacio(id)
-    
-    if (!resultado.success) {
-      setError(resultado.error || 'Error al eliminar')
-      setProcesando(false)
-      return
-    }
-
-    await cargarDatos()
-    setProcesando(false)
   }
 
   if (loading) {
@@ -139,10 +115,8 @@ export default function GestionarEspaciosPage({ params }: Props) {
   return (
     <DashboardBackground>
       <div className="min-h-screen">
-        {/* Header */}
         <div className="border-b border-white/10 bg-black/20 backdrop-blur-xl">
           <div className="max-w-7xl mx-auto px-6 py-8">
-            {/* Breadcrumb */}
             <div className="flex items-center gap-2 text-sm text-white/60 mb-4">
               <Link href="/admin/espacios" className="hover:text-white transition-colors">
                 Espacios
@@ -161,13 +135,13 @@ export default function GestionarEspaciosPage({ params }: Props) {
                   {salon?.nombre}
                 </h1>
                 <p className="text-white/60">
-                  Gestión de espacios ({espacios.length} / {salon?.capacidad_maxima})
+                  Gestión de espacios ({espacios.length} / {salon?.capacidad_maxima || 0})
                 </p>
               </div>
               
               <button
                 onClick={() => setShowModal(true)}
-                disabled={procesando || espacios.length >= salon?.capacidad_maxima}
+                disabled={procesando || espacios.length >= (salon?.capacidad_maxima || 0)}
                 className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-gradient-to-r from-[#E84A27] to-[#FF6B35] text-white font-medium hover:shadow-lg hover:shadow-[#E84A27]/50 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -179,7 +153,6 @@ export default function GestionarEspaciosPage({ params }: Props) {
           </div>
         </div>
 
-        {/* Content */}
         <div className="max-w-7xl mx-auto px-6 py-8">
           {error && (
             <div className="mb-6 p-4 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400">
@@ -203,7 +176,7 @@ export default function GestionarEspaciosPage({ params }: Props) {
             </div>
           ) : (
             <EspaciosGrid
-              espacios={espacios}
+              espacios={espacios as (EspacioData & { id: string })[]}
               salonId={params.id}
               onEspaciosChange={cargarDatos}
             />
@@ -211,7 +184,6 @@ export default function GestionarEspaciosPage({ params }: Props) {
         </div>
       </div>
 
-      {/* Modal Agregar Espacio */}
       <AnimatePresence>
         {showModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
@@ -224,7 +196,6 @@ export default function GestionarEspaciosPage({ params }: Props) {
               <h2 className="text-2xl font-bold text-white mb-6">Agregar Nuevo Espacio</h2>
 
               <div className="space-y-4">
-                {/* Número */}
                 <div>
                   <label className="text-sm font-medium text-white/80 mb-2 block">
                     Número del espacio *
@@ -238,7 +209,6 @@ export default function GestionarEspaciosPage({ params }: Props) {
                   />
                 </div>
 
-                {/* Tipo */}
                 <div>
                   <label className="text-sm font-medium text-white/80 mb-2 block">
                     Tipo de equipo *
@@ -271,7 +241,6 @@ export default function GestionarEspaciosPage({ params }: Props) {
                   </div>
                 </div>
 
-                {/* Marca y Modelo */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-sm font-medium text-white/80 mb-2 block">
@@ -299,7 +268,6 @@ export default function GestionarEspaciosPage({ params }: Props) {
                   </div>
                 </div>
 
-                {/* Botones */}
                 <div className="flex gap-3 pt-4">
                   <button
                     onClick={() => setShowModal(false)}

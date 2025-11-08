@@ -3,20 +3,10 @@
 import { useState } from 'react'
 import { EspacioCard } from './EspacioCard'
 import type { EstadoEspacio } from '@/lib/types/enums'
-
-interface Espacio {
-  id: string
-  numero: number
-  tipo_equipo: string
-  marca_equipo: string | null
-  modelo_equipo: string | null
-  estado: EstadoEspacio
-  usos_desde_mantenimiento: number
-  usos_para_mantenimiento: number
-}
+import type { EspacioData } from '@/lib/actions/espacios-actions'
 
 interface EspaciosGridProps {
-  espacios: Espacio[]
+  espacios: (EspacioData & { id: string })[]
   salonId: string
   onEspaciosChange: () => void
 }
