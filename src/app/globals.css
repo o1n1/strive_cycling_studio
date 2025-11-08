@@ -1,0 +1,171 @@
+/* src/app/globals.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Colores de marca STRIVE (originales) */
+    --color-primary: #AE3F21; /* Terracota */
+    --color-secondary: #9C7A5E; /* Marrón */
+    --color-dark: #1A1814; /* Negro carbón */
+    
+    /* Colores Design System STRIVE (nuevos) */
+    --bg-primary: #0A0A0A;
+    --primary: #E84A27;
+    --primary-light: #FF6B35;
+    --secondary: #FF006E;
+    --purple: #9D4EDD;
+    
+    /* Efectos */
+    --glow-primary: rgba(232, 74, 39, 0.4);
+    --glass-bg: rgba(26, 24, 20, 0.6);
+    
+    /* Timing */
+    --easing-smooth: cubic-bezier(0.22, 1, 0.36, 1);
+    --duration-normal: 0.4s;
+  }
+
+  body {
+    @apply bg-gray-50 text-[#1A1814] antialiased;
+  }
+}
+
+@layer components {
+  /* Componentes personalizados si se necesitan */
+  .btn-primary {
+    @apply bg-[#AE3F21] text-white px-4 py-2 rounded-lg hover:bg-[#8f3319] transition-colors;
+  }
+
+  .btn-secondary {
+    @apply bg-[#9C7A5E] text-white px-4 py-2 rounded-lg hover:bg-[#7d6248] transition-colors;
+  }
+}
+
+@layer utilities {
+  /* Utilidades personalizadas */
+  .text-balance {
+    text-wrap: balance;
+  }
+  
+  .animate-fadeIn {
+    animation: fadeIn 0.2s ease-out;
+  }
+  
+  .animate-scaleIn {
+    animation: scaleIn 0.2s ease-out;
+  }
+  
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+  
+  .animate-float-delayed {
+    animation: float-delayed 8s ease-in-out infinite;
+  }
+  
+  .animate-shake {
+    animation: shake 0.5s ease-in-out;
+  }
+  
+  .glassmorphism {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+  }
+  
+  .glassmorphism-premium {
+    background: rgba(26, 24, 20, 0.6);
+    backdrop-filter: blur(40px);
+    -webkit-backdrop-filter: blur(40px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+}
+
+/* Estilos para scrollbar personalizado */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-gray-100;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-gray-400 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-gray-500;
+}
+
+/* Animaciones personalizadas existentes */
+@keyframes slideIn {
+  from {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in {
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Animaciones nuevas del Design System */
+@keyframes float {
+  0%, 100% { 
+    transform: translateY(0px) translateX(0px); 
+  }
+  33% { 
+    transform: translateY(-20px) translateX(10px); 
+  }
+  66% { 
+    transform: translateY(-10px) translateX(-10px); 
+  }
+}
+
+@keyframes float-delayed {
+  0%, 100% { 
+    transform: translateY(0px) translateX(0px); 
+  }
+  33% { 
+    transform: translateY(-30px) translateX(-15px); 
+  }
+  66% { 
+    transform: translateY(-15px) translateX(15px); 
+  }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-8px); }
+  20%, 40%, 60%, 80% { transform: translateX(8px); }
+}
+
+/* Estilos para inputs de fecha y hora */
+input[type='date']::-webkit-calendar-picker-indicator,
+input[type='time']::-webkit-calendar-picker-indicator {
+  @apply cursor-pointer opacity-60 hover:opacity-100;
+}
