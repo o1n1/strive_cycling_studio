@@ -54,10 +54,10 @@ export default function DashboardLayout({
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#0A0A0A] via-[#0F0E0D] to-[#1A1814]">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#AE3F21] mx-auto"></div>
-          <p className="mt-4 text-gray-600">Cargando...</p>
+          <div className="w-16 h-16 border-4 border-[#E84A27] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-white/60">Cargando...</p>
         </div>
       </div>
     )
@@ -104,16 +104,16 @@ export default function DashboardLayout({
   const menuItems = menusByRole[profile.rol] || []
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-[#0A0A0A] via-[#0F0E0D] to-[#1A1814]">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <header className="bg-black/40 backdrop-blur-xl border-b border-white/10 sticky top-0 z-50">
+        <div className="max-w-full px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            {/* Logo */}
-            <div className="flex items-center">
+            {/* Logo y menú mobile */}
+            <div className="flex items-center gap-4">
               <button
                 onClick={() => setMenuOpen(!menuOpen)}
-                className="mr-4 lg:hidden"
+                className="lg:hidden p-2 text-white/60 hover:text-white hover:bg-white/10 rounded-lg transition-all"
               >
                 <svg
                   className="w-6 h-6"
@@ -125,26 +125,28 @@ export default function DashboardLayout({
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     strokeWidth={2}
-                    d="M4 6h16M4 12h16M4 18h16"
+                    d={menuOpen ? "M6 18L18 6M6 6l12 12" : "M4 6h16M4 12h16M4 18h16"}
                   />
                 </svg>
               </button>
-              <Link href={`/${profile.rol}`}>
-                <h1 className="text-2xl font-bold text-[#AE3F21]">STRIVE</h1>
+              <Link href={`/${profile.rol}`} className="group">
+                <h1 className="text-2xl font-bold bg-gradient-to-r from-[#E84A27] via-[#FF6B35] to-[#FF006E] bg-clip-text text-transparent group-hover:opacity-80 transition-opacity">
+                  STRIVE
+                </h1>
               </Link>
             </div>
 
-            {/* Usuario */}
-            <div className="flex items-center space-x-4">
-              <div className="text-right">
-                <p className="text-sm font-medium text-gray-900">
+            {/* Usuario y logout */}
+            <div className="flex items-center gap-4">
+              <div className="text-right hidden sm:block">
+                <p className="text-sm font-medium text-white">
                   {profile.nombre_completo}
                 </p>
-                <p className="text-xs text-gray-500 capitalize">{profile.rol}</p>
+                <p className="text-xs text-white/60 capitalize">{profile.rol}</p>
               </div>
               <button
                 onClick={handleLogout}
-                className="p-2 text-gray-600 hover:text-[#AE3F21] transition-colors"
+                className="p-2 text-white/60 hover:text-white hover:bg-white/10 rounded-lg transition-all"
                 title="Cerrar sesión"
               >
                 <svg
@@ -168,7 +170,7 @@ export default function DashboardLayout({
 
       <div className="flex">
         {/* Sidebar - Desktop */}
-        <aside className="hidden lg:block w-64 bg-white border-r border-gray-200 min-h-[calc(100vh-4rem)] sticky top-16">
+        <aside className="hidden lg:block w-64 bg-black/20 backdrop-blur-xl border-r border-white/10 min-h-[calc(100vh-4rem)] sticky top-16">
           <nav className="p-4 space-y-1">
             {menuItems.map((item) => {
               const isActive = pathname === item.href
@@ -176,10 +178,10 @@ export default function DashboardLayout({
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
+                  className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-300 ${
                     isActive
-                      ? 'bg-[#AE3F21] text-white'
-                      : 'text-gray-700 hover:bg-gray-100'
+                      ? 'bg-gradient-to-r from-[#E84A27] to-[#FF6B35] text-white shadow-lg shadow-[#E84A27]/50'
+                      : 'text-white/70 hover:text-white hover:bg-white/10'
                   }`}
                 >
                   <span className="text-xl">{item.icon}</span>
@@ -188,16 +190,26 @@ export default function DashboardLayout({
               )
             })}
           </nav>
+
+          {/* Info del usuario en sidebar */}
+          <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-white/10">
+            <div className="bg-white/5 backdrop-blur-xl rounded-lg p-3">
+              <p className="text-sm font-medium text-white truncate">
+                {profile.nombre_completo}
+              </p>
+              <p className="text-xs text-white/60 capitalize">{profile.rol}</p>
+            </div>
+          </div>
         </aside>
 
         {/* Sidebar - Mobile */}
         {menuOpen && (
           <div
-            className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm z-40 lg:hidden"
             onClick={() => setMenuOpen(false)}
           >
             <aside
-              className="w-64 bg-white h-full"
+              className="w-64 h-full bg-black/40 backdrop-blur-xl border-r border-white/10"
               onClick={(e) => e.stopPropagation()}
             >
               <nav className="p-4 space-y-1">
@@ -208,10 +220,10 @@ export default function DashboardLayout({
                       key={item.href}
                       href={item.href}
                       onClick={() => setMenuOpen(false)}
-                      className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
+                      className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-300 ${
                         isActive
-                          ? 'bg-[#AE3F21] text-white'
-                          : 'text-gray-700 hover:bg-gray-100'
+                          ? 'bg-gradient-to-r from-[#E84A27] to-[#FF6B35] text-white shadow-lg shadow-[#E84A27]/50'
+                          : 'text-white/70 hover:text-white hover:bg-white/10'
                       }`}
                     >
                       <span className="text-xl">{item.icon}</span>
@@ -220,12 +232,22 @@ export default function DashboardLayout({
                   )
                 })}
               </nav>
+
+              {/* Info del usuario en sidebar mobile */}
+              <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-white/10">
+                <div className="bg-white/5 backdrop-blur-xl rounded-lg p-3">
+                  <p className="text-sm font-medium text-white truncate">
+                    {profile.nombre_completo}
+                  </p>
+                  <p className="text-xs text-white/60 capitalize">{profile.rol}</p>
+                </div>
+              </div>
             </aside>
           </div>
         )}
 
         {/* Contenido principal */}
-        <main className="flex-1 p-6 lg:p-8">{children}</main>
+        <main className="flex-1 overflow-x-hidden">{children}</main>
       </div>
     </div>
   )
