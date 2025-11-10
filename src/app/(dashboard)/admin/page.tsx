@@ -1,7 +1,7 @@
 // src/app/(dashboard)/admin/page.tsx
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { DashboardBackground } from '@/components/ui/DashboardBackground'
@@ -38,28 +38,26 @@ export default function AdminDashboard() {
     reservasHoy: 0
   })
   const [cargando, setCargando] = useState(true)
-  const [actividadReciente] = useState<ActividadReciente[]>([]) // Se llenará con datos reales
+  const [actividadReciente] = useState<ActividadReciente[]>([])
   const supabase = createClient()
 
-  useEffect(() => {
-    cargarEstadisticas()
-  }, [])
-
-  const cargarEstadisticas = async () => {
+  const cargarEstadisticas = useCallback(async () => {
     try {
       // Contar clientes activos
       const { count: clientesCount } = await supabase
         .from('clientes')
         .select('*', { count: 'exact', head: true })
-        .eq('activo', true)
 
-      // Contar clases de hoy
-      const hoy = new Date().toISOString().split('T')[0]
+      // ✅ CORREGIDO: fecha_hora en lugar de fecha
+      const hoy = new Date()
+      const inicioHoy = new Date(hoy.setHours(0, 0, 0, 0)).toISOString()
+      const finHoy = new Date(hoy.setHours(23, 59, 59, 999)).toISOString()
+
       const { count: clasesCount } = await supabase
         .from('clases')
         .select('*', { count: 'exact', head: true })
-        .gte('fecha', hoy)
-        .lt('fecha', `${hoy}T23:59:59`)
+        .gte('fecha_hora', inicioHoy)
+        .lt('fecha_hora', finHoy)
 
       // Contar espacios
       const { count: espaciosTotalesCount } = await supabase
@@ -97,7 +95,11 @@ export default function AdminDashboard() {
     } finally {
       setCargando(false)
     }
-  }
+  }, [supabase])
+
+  useEffect(() => {
+    cargarEstadisticas()
+  }, [cargarEstadisticas])
 
   const modulosRapidos = [
     {
@@ -114,7 +116,7 @@ export default function AdminDashboard() {
       icono: '👥',
       href: '/admin/personal',
       color: 'from-[#FF006E] to-[#FF6B35]',
-      disponible: true
+      disponible: false
     },
     {
       nombre: 'Clases',
@@ -122,7 +124,7 @@ export default function AdminDashboard() {
       icono: '📅',
       href: '/admin/clases',
       color: 'from-[#9D4EDD] to-[#FF006E]',
-      disponible: false
+      disponible: true
     },
     {
       nombre: 'Clientes',

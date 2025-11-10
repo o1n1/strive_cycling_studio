@@ -104,7 +104,7 @@ export function FormularioEditarClase({ clase, salones, especialidades }: Props)
       const resultado = await actualizarClase(clase.id, datos)
 
       if (resultado.success) {
-        router.push('/admin/clases')
+        router.push(`/admin/clases/${clase.id}`)
         router.refresh()
       } else {
         setError(resultado.error)
@@ -118,24 +118,14 @@ export function FormularioEditarClase({ clase, salones, especialidades }: Props)
 
   return (
     <form onSubmit={manejarSubmit} className="space-y-6">
+      {/* Card principal */}
       <div className="rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10 p-8 space-y-6">
+        {/* Error */}
         {error && (
           <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400">
             {error}
           </div>
         )}
-
-        {/* Info no editable */}
-        <div className="p-4 rounded-xl bg-blue-500/10 border border-blue-500/20">
-          <p className="text-blue-400 text-sm font-medium mb-2">Información de la Clase</p>
-          <div className="flex items-center gap-4 text-sm text-blue-300">
-            <span>📚 {clase.disciplina.nombre}</span>
-            {clase.coach && (
-              <span>👤 Coach: {clase.coach.profiles.nombre_completo}</span>
-            )}
-            <span>📊 Estado: {clase.estado}</span>
-          </div>
-        </div>
 
         {/* Fecha y Hora */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -175,7 +165,7 @@ export function FormularioEditarClase({ clase, salones, especialidades }: Props)
           <select
             value={formData.salon_id}
             onChange={(e) => manejarCambioSalon(e.target.value)}
-            className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:bg-white/10 focus:border-[#E84A27]/50 focus:outline-none transition-all duration-300"
+            className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:bg-white/10 focus:border-[#E84A27]/50 focus:outline-none transition-all duration-300 [&>option]:text-gray-900 [&>option]:bg-white"
             required
           >
             {salones.map((salon) => (
@@ -195,7 +185,7 @@ export function FormularioEditarClase({ clase, salones, especialidades }: Props)
             <select
               value={formData.especialidad_id}
               onChange={(e) => setFormData({ ...formData, especialidad_id: e.target.value })}
-              className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:bg-white/10 focus:border-[#E84A27]/50 focus:outline-none transition-all duration-300"
+              className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:bg-white/10 focus:border-[#E84A27]/50 focus:outline-none transition-all duration-300 [&>option]:text-gray-900 [&>option]:bg-white"
             >
               <option value="">Sin especialidad específica</option>
               {especialidadesFiltradas.map((esp) => (
@@ -233,20 +223,15 @@ export function FormularioEditarClase({ clase, salones, especialidades }: Props)
               type="number"
               value={formData.capacidad}
               onChange={(e) => setFormData({ ...formData, capacidad: parseInt(e.target.value) || 0 })}
-              min={clase.reservas_count}
+              min="1"
               max="100"
               className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:bg-white/10 focus:border-[#E84A27]/50 focus:outline-none transition-all duration-300"
               required
             />
-            {clase.reservas_count > 0 && (
-              <p className="text-white/40 text-sm mt-2">
-                Mínimo {clase.reservas_count} (reservas actuales)
-              </p>
-            )}
           </div>
         </div>
 
-        {/* Nombre */}
+        {/* Nombre de la clase (opcional) */}
         <div>
           <label className="block text-white font-medium mb-2">
             Nombre de la Clase <span className="text-white/40">(opcional)</span>
@@ -255,13 +240,12 @@ export function FormularioEditarClase({ clase, salones, especialidades }: Props)
             type="text"
             value={formData.nombre_clase}
             onChange={(e) => setFormData({ ...formData, nombre_clase: e.target.value })}
-            placeholder="Ej: Upper Body Power"
-            maxLength={100}
+            placeholder="Ej: Power Ride, Core Blast..."
             className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder:text-white/40 focus:bg-white/10 focus:border-[#E84A27]/50 focus:outline-none transition-all duration-300"
           />
         </div>
 
-        {/* Descripción */}
+        {/* Descripción (opcional) */}
         <div>
           <label className="block text-white font-medium mb-2">
             Descripción <span className="text-white/40">(opcional)</span>
@@ -269,32 +253,30 @@ export function FormularioEditarClase({ clase, salones, especialidades }: Props)
           <textarea
             value={formData.descripcion}
             onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
-            placeholder="Agrega detalles sobre la clase..."
+            placeholder="Describe el enfoque de la clase..."
             rows={3}
-            maxLength={500}
             className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder:text-white/40 focus:bg-white/10 focus:border-[#E84A27]/50 focus:outline-none transition-all duration-300 resize-none"
           />
         </div>
 
-        {/* Notas Coach */}
+        {/* Notas del coach */}
         <div>
           <label className="block text-white font-medium mb-2">
-            Notas para el Coach <span className="text-white/40">(opcional)</span>
+            Notas del Coach <span className="text-white/40">(opcional)</span>
           </label>
           <textarea
             value={formData.notas_coach}
             onChange={(e) => setFormData({ ...formData, notas_coach: e.target.value })}
-            placeholder="Instrucciones especiales..."
-            rows={2}
-            maxLength={500}
+            placeholder="Notas internas para el coach..."
+            rows={3}
             className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder:text-white/40 focus:bg-white/10 focus:border-[#E84A27]/50 focus:outline-none transition-all duration-300 resize-none"
           />
         </div>
 
-        {/* Playlist */}
+        {/* Playlist URL */}
         <div>
           <label className="block text-white font-medium mb-2">
-            URL de Playlist <span className="text-white/40">(opcional)</span>
+            Playlist URL <span className="text-white/40">(opcional)</span>
           </label>
           <input
             type="url"
@@ -307,17 +289,17 @@ export function FormularioEditarClase({ clase, salones, especialidades }: Props)
       </div>
 
       {/* Botones */}
-      <div className="flex items-center justify-end gap-4">
+      <div className="flex items-center gap-4 justify-end">
         <Link
-          href="/admin/clases"
-          className="px-6 py-3 rounded-xl font-medium transition-all duration-300 bg-white/5 border border-white/10 text-white hover:bg-white/10 hover:border-white/20"
+          href={`/admin/clases/${clase.id}`}
+          className="px-6 py-3 rounded-xl font-medium transition-all duration-300 bg-white/5 hover:bg-white/10 text-white border border-white/10"
         >
           Cancelar
         </Link>
         <button
           type="submit"
           disabled={cargando}
-          className="px-6 py-3 rounded-xl font-medium transition-all duration-300 bg-gradient-to-r from-[#E84A27] to-[#FF6B35] text-white hover:shadow-lg hover:shadow-[#E84A27]/25 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-6 py-3 rounded-xl font-medium transition-all duration-300 bg-gradient-to-r from-[#E84A27] to-[#FF6B35] text-white hover:shadow-lg hover:shadow-[#E84A27]/25 disabled:opacity-50"
         >
           {cargando ? 'Guardando...' : 'Guardar Cambios'}
         </button>

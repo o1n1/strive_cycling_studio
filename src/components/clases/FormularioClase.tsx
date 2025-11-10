@@ -188,7 +188,7 @@ export function FormularioClase({ salones, disciplinas, especialidades }: Props)
             <select
               value={formData.salon_id}
               onChange={(e) => manejarCambioSalon(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:bg-white/10 focus:border-[#E84A27]/50 focus:outline-none transition-all duration-300"
+              className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:bg-white/10 focus:border-[#E84A27]/50 focus:outline-none transition-all duration-300 [&>option]:text-gray-900 [&>option]:bg-white"
               required
             >
               <option value="">Selecciona un salón</option>
@@ -207,7 +207,7 @@ export function FormularioClase({ salones, disciplinas, especialidades }: Props)
             <select
               value={formData.disciplina_id}
               onChange={(e) => manejarCambioDisciplina(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:bg-white/10 focus:border-[#E84A27]/50 focus:outline-none transition-all duration-300"
+              className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:bg-white/10 focus:border-[#E84A27]/50 focus:outline-none transition-all duration-300 [&>option]:text-gray-900 [&>option]:bg-white"
               required
             >
               <option value="">Selecciona una disciplina</option>
@@ -229,7 +229,7 @@ export function FormularioClase({ salones, disciplinas, especialidades }: Props)
             <select
               value={formData.especialidad_id}
               onChange={(e) => setFormData({ ...formData, especialidad_id: e.target.value })}
-              className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:bg-white/10 focus:border-[#E84A27]/50 focus:outline-none transition-all duration-300"
+              className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:bg-white/10 focus:border-[#E84A27]/50 focus:outline-none transition-all duration-300 [&>option]:text-gray-900 [&>option]:bg-white"
             >
               <option value="">Sin especialidad específica</option>
               {especialidadesFiltradas.map((esp) => (
@@ -284,8 +284,7 @@ export function FormularioClase({ salones, disciplinas, especialidades }: Props)
             type="text"
             value={formData.nombre_clase}
             onChange={(e) => setFormData({ ...formData, nombre_clase: e.target.value })}
-            placeholder="Ej: Upper Body Power"
-            maxLength={100}
+            placeholder="Ej: Power Ride, Core Blast..."
             className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder:text-white/40 focus:bg-white/10 focus:border-[#E84A27]/50 focus:outline-none transition-all duration-300"
           />
         </div>
@@ -298,48 +297,28 @@ export function FormularioClase({ salones, disciplinas, especialidades }: Props)
           <textarea
             value={formData.descripcion}
             onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
-            placeholder="Agrega detalles sobre la clase..."
-            rows={4}
-            maxLength={500}
+            placeholder="Describe el enfoque de la clase..."
+            rows={3}
             className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder:text-white/40 focus:bg-white/10 focus:border-[#E84A27]/50 focus:outline-none transition-all duration-300 resize-none"
           />
-          <p className="text-white/40 text-sm mt-2">
-            {formData.descripcion.length}/500 caracteres
-          </p>
         </div>
       </div>
 
       {/* Botones */}
-      <div className="flex items-center justify-end gap-4">
+      <div className="flex items-center gap-4 justify-end">
         <Link
           href="/admin/clases"
-          className="px-6 py-3 rounded-xl font-medium transition-all duration-300 bg-white/5 border border-white/10 text-white hover:bg-white/10 hover:border-white/20"
+          className="px-6 py-3 rounded-xl font-medium transition-all duration-300 bg-white/5 hover:bg-white/10 text-white border border-white/10"
         >
           Cancelar
         </Link>
         <button
           type="submit"
           disabled={cargando}
-          className="px-6 py-3 rounded-xl font-medium transition-all duration-300 bg-gradient-to-r from-[#E84A27] to-[#FF6B35] text-white hover:shadow-lg hover:shadow-[#E84A27]/25 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-6 py-3 rounded-xl font-medium transition-all duration-300 bg-gradient-to-r from-[#E84A27] to-[#FF6B35] text-white hover:shadow-lg hover:shadow-[#E84A27]/25 disabled:opacity-50"
         >
           {cargando ? 'Creando...' : 'Crear Clase'}
         </button>
-      </div>
-
-      {/* Nota informativa */}
-      <div className="rounded-xl bg-blue-500/10 border border-blue-500/20 p-4">
-        <div className="flex items-start gap-3">
-          <span className="text-2xl">ℹ️</span>
-          <div>
-            <p className="text-blue-400 font-medium mb-1">
-              Notificación Automática
-            </p>
-            <p className="text-blue-300/80 text-sm">
-              Al crear la clase, todos los coaches activos recibirán una notificación 
-              y podrán solicitar impartirla.
-            </p>
-          </div>
-        </div>
       </div>
     </form>
   )

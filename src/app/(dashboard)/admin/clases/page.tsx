@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { DashboardBackground } from '@/components/ui/DashboardBackground'
 import { ClaseCard } from '@/components/clases/ClaseCard'
 import { FiltrosClases } from '@/components/clases/FiltrosClases'
+import { ToggleFuturas } from '@/components/clases/ToggleFuturas'
 import { obtenerClases } from '@/lib/actions/clases-actions'
 
 export const dynamic = 'force-dynamic'
@@ -12,15 +13,19 @@ export const dynamic = 'force-dynamic'
 // SERVIDOR - DATOS
 // ============================================================================
 
-async function obtenerDatosClases() {
+interface PageProps {
+  searchParams: { solo_futuras?: string }
+}
+
+async function obtenerDatosClases(soloFuturas: boolean) {
   const hoy = new Date()
   const proximos7Dias = new Date(hoy)
   proximos7Dias.setDate(hoy.getDate() + 7)
 
   const resultado = await obtenerClases({
-    desde: hoy.toISOString(),
-    hasta: proximos7Dias.toISOString(),
-    solo_futuras: true
+    desde: soloFuturas ? hoy.toISOString() : undefined,
+    hasta: soloFuturas ? proximos7Dias.toISOString() : undefined,
+    solo_futuras: soloFuturas
   })
 
   if (!resultado.success) {
@@ -65,8 +70,8 @@ async function obtenerEstadisticas() {
 // COMPONENTE CONTENIDO
 // ============================================================================
 
-async function ClasesContent() {
-  const { clases, error } = await obtenerDatosClases()
+async function ClasesContent({ soloFuturas }: { soloFuturas: boolean }) {
+  const { clases, error } = await obtenerDatosClases(soloFuturas)
   const stats = await obtenerEstadisticas()
 
   if (error) {
@@ -110,7 +115,7 @@ async function ClasesContent() {
         </div>
       </div>
 
-      {/* KPIs */}
+      {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="group relative overflow-hidden rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10 p-6 transition-all duration-300 hover:bg-white/10 hover:border-[#E84A27]/50 hover:shadow-lg hover:shadow-[#E84A27]/10">
           <div className="absolute inset-0 bg-gradient-to-br from-[#E84A27]/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
@@ -130,7 +135,7 @@ async function ClasesContent() {
           <div className="relative">
             <div className="flex items-center justify-between mb-4">
               <div className="w-12 h-12 rounded-xl bg-[#FF6B35]/10 flex items-center justify-center text-2xl">
-                ⚠️
+                ⏳
               </div>
             </div>
             <p className="text-white/60 text-sm mb-1">Sin Asignar</p>
@@ -165,6 +170,9 @@ async function ClasesContent() {
         </div>
       </div>
 
+      {/* Toggle Ver Futuras/Todas */}
+      <ToggleFuturas soloFuturasInicial={soloFuturas} />
+
       {/* Filtros */}
       <FiltrosClases />
 
@@ -176,7 +184,10 @@ async function ClasesContent() {
             No hay clases programadas
           </h3>
           <p className="text-white/60 mb-6">
-            Comienza creando tu primera clase para los próximos días
+            {soloFuturas 
+              ? 'No hay clases futuras. Cambia a "Ver todas" para ver clases pasadas.'
+              : 'Comienza creando tu primera clase'
+            }
           </p>
           <Link
             href="/admin/clases/nueva"
@@ -220,6 +231,8 @@ function LoadingClases() {
         ))}
       </div>
 
+      <div className="h-16 bg-white/5 rounded-2xl animate-pulse" />
+
       <div className="h-20 bg-white/5 rounded-2xl animate-pulse" />
 
       <div className="space-y-4">
@@ -235,13 +248,15 @@ function LoadingClases() {
 // PAGE
 // ============================================================================
 
-export default function AdminClasesPage() {
+export default function AdminClasesPage({ searchParams }: PageProps) {
+  const soloFuturas = searchParams.solo_futuras !== 'false'
+  
   return (
     <DashboardBackground>
       <div className="min-h-screen">
         <div className="max-w-7xl mx-auto px-6 py-8">
           <Suspense fallback={<LoadingClases />}>
-            <ClasesContent />
+            <ClasesContent soloFuturas={soloFuturas} />
           </Suspense>
         </div>
       </div>

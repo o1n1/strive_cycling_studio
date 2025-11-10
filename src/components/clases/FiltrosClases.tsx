@@ -1,39 +1,35 @@
+// src/components/clases/FiltrosClases.tsx
 'use client'
 
-// src/components/clases/FiltrosClases.tsx
 import { useState } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
 
-export function FiltrosClases() {
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  
-  const [filtros, setFiltros] = useState({
-    salon: searchParams.get('salon') || '',
-    disciplina: searchParams.get('disciplina') || '',
-    estado: searchParams.get('estado') || '',
-    coach: searchParams.get('coach') || ''
+interface Filtros {
+  salon: string
+  disciplina: string
+  estado: string
+  coach: string
+}
+
+interface Props {
+  onAplicar: (filtros: Filtros) => void
+}
+
+export function FiltrosClases({ onAplicar }: Props) {
+  const [filtros, setFiltros] = useState<Filtros>({
+    salon: '',
+    disciplina: '',
+    estado: '',
+    coach: ''
   })
 
   const aplicarFiltros = () => {
-    const params = new URLSearchParams()
-    
-    if (filtros.salon) params.set('salon', filtros.salon)
-    if (filtros.disciplina) params.set('disciplina', filtros.disciplina)
-    if (filtros.estado) params.set('estado', filtros.estado)
-    if (filtros.coach) params.set('coach', filtros.coach)
-
-    router.push(`/admin/clases?${params.toString()}`)
+    onAplicar(filtros)
   }
 
   const limpiarFiltros = () => {
-    setFiltros({
-      salon: '',
-      disciplina: '',
-      estado: '',
-      coach: ''
-    })
-    router.push('/admin/clases')
+    const filtrosVacios = { salon: '', disciplina: '', estado: '', coach: '' }
+    setFiltros(filtrosVacios)
+    onAplicar(filtrosVacios)
   }
 
   const hayFiltrosActivos = Object.values(filtros).some(v => v !== '')
@@ -61,7 +57,7 @@ export function FiltrosClases() {
           <select
             value={filtros.salon}
             onChange={(e) => setFiltros({ ...filtros, salon: e.target.value })}
-            className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:bg-white/10 focus:border-[#E84A27]/50 focus:outline-none transition-all duration-300"
+            className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:bg-white/10 focus:border-[#E84A27]/50 focus:outline-none transition-all duration-300 [&>option]:text-gray-900 [&>option]:bg-white"
           >
             <option value="">Todos los salones</option>
             <option value="cycling">Salón Cycling</option>
@@ -77,7 +73,7 @@ export function FiltrosClases() {
           <select
             value={filtros.disciplina}
             onChange={(e) => setFiltros({ ...filtros, disciplina: e.target.value })}
-            className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:bg-white/10 focus:border-[#E84A27]/50 focus:outline-none transition-all duration-300"
+            className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:bg-white/10 focus:border-[#E84A27]/50 focus:outline-none transition-all duration-300 [&>option]:text-gray-900 [&>option]:bg-white"
           >
             <option value="">Todas las disciplinas</option>
             <option value="cycling">Cycling</option>
@@ -93,7 +89,7 @@ export function FiltrosClases() {
           <select
             value={filtros.estado}
             onChange={(e) => setFiltros({ ...filtros, estado: e.target.value })}
-            className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:bg-white/10 focus:border-[#E84A27]/50 focus:outline-none transition-all duration-300"
+            className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:bg-white/10 focus:border-[#E84A27]/50 focus:outline-none transition-all duration-300 [&>option]:text-gray-900 [&>option]:bg-white"
           >
             <option value="">Todos los estados</option>
             <option value="programada">Programadas</option>
@@ -110,7 +106,7 @@ export function FiltrosClases() {
           <select
             value={filtros.coach}
             onChange={(e) => setFiltros({ ...filtros, coach: e.target.value })}
-            className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:bg-white/10 focus:border-[#E84A27]/50 focus:outline-none transition-all duration-300"
+            className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:bg-white/10 focus:border-[#E84A27]/50 focus:outline-none transition-all duration-300 [&>option]:text-gray-900 [&>option]:bg-white"
           >
             <option value="">Todos</option>
             <option value="asignado">Con coach asignado</option>
@@ -121,7 +117,9 @@ export function FiltrosClases() {
 
       <div className="mt-4 flex justify-end">
         <button
-          onClick={aplicarFiltros}
+          onClick=
+
+{aplicarFiltros}
           className="px-6 py-3 rounded-xl font-medium transition-all duration-300 bg-gradient-to-r from-[#E84A27] to-[#FF6B35] text-white hover:shadow-lg hover:shadow-[#E84A27]/25"
         >
           Aplicar Filtros

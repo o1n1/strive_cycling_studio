@@ -192,7 +192,7 @@ export async function obtenerClases(filtros?: {
         coach:coaches (
           id,
           biografia,
-          profiles (
+          profiles!coaches_id_fkey (
             nombre_completo,
             foto_url
           )
@@ -288,7 +288,7 @@ export async function obtenerClasePorId(id: string): Promise<ActionResponse<Clas
         coach:coaches (
           id,
           biografia,
-          profiles (
+          profiles!coaches_id_fkey (
             nombre_completo,
             foto_url
           )
@@ -516,17 +516,10 @@ export async function cancelarClase(id: string, razon?: string): Promise<ActionR
       return { success: false, error: 'No autorizado' }
     }
 
-    // Obtener clase con reservas
+    // FIX 1: Obtener clase SIN reservas en el mismo query
     const { data: clase } = await supabase
       .from('clases')
-      .select(`
-        *,
-        reservas!inner (
-          id,
-          cliente_id,
-          creditos_usados
-        )
-      `)
+      .select('*')
       .eq('id', id)
       .single()
 
@@ -545,9 +538,15 @@ export async function cancelarClase(id: string, razon?: string): Promise<ActionR
 
     if (errorCancelar) throw errorCancelar
 
-    // Cancelar todas las reservas y devolver créditos
-    if (clase.reservas && Array.isArray(clase.reservas) && clase.reservas.length > 0) {
-      for (const reserva of clase.reservas) {
+    // FIX 1: Obtener reservas por separado (puede ser vacío)
+    const { data: reservas } = await supabase
+      .from('reservas')
+      .select('id, cliente_id, creditos_usados')
+      .eq('clase_id', id)
+
+    // Cancelar reservas si existen
+    if (reservas && reservas.length > 0) {
+      for (const reserva of reservas) {
         // Cancelar reserva
         await supabase
           .from('reservas')
@@ -563,26 +562,34 @@ export async function cancelarClase(id: string, razon?: string): Promise<ActionR
           p_creditos: reserva.creditos_usados || 1
         })
 
-        // Notificar cliente
-        await supabase.from('notificaciones').insert({
-          destinatario_id: reserva.cliente_id,
-          tipo: 'clase_cancelada',
-          titulo: 'Clase Cancelada',
-          mensaje: `La clase del ${new Date(clase.fecha_hora).toLocaleString('es-MX')} fue cancelada. Tus créditos han sido devueltos.`,
-          url_accion: '/cliente/clases'
-        })
+        // Notificar cliente (no bloquear si falla)
+        try {
+          await supabase.from('notificaciones').insert({
+            destinatario_id: reserva.cliente_id,
+            tipo: 'clase_cancelada',
+            titulo: 'Clase Cancelada',
+            mensaje: `La clase del ${new Date(clase.fecha_hora).toLocaleString('es-MX')} fue cancelada. Tus créditos han sido devueltos.`,
+            url_accion: '/cliente/clases'
+          })
+        } catch (err) {
+          console.error('Error al notificar cliente:', err)
+        }
       }
     }
 
-    // Notificar coach si estaba asignado
+    // Notificar coach si estaba asignado (no bloquear si falla)
     if (clase.coach_id) {
-      await supabase.from('notificaciones').insert({
-        destinatario_id: clase.coach_id,
-        tipo: 'clase_cancelada',
-        titulo: 'Clase Cancelada',
-        mensaje: `Tu clase del ${new Date(clase.fecha_hora).toLocaleString('es-MX')} fue cancelada.`,
-        url_accion: '/coach/clases'
-      })
+      try {
+        await supabase.from('notificaciones').insert({
+          destinatario_id: clase.coach_id,
+          tipo: 'clase_cancelada',
+          titulo: 'Clase Cancelada',
+          mensaje: `Tu clase del ${new Date(clase.fecha_hora).toLocaleString('es-MX')} fue cancelada.`,
+          url_accion: '/coach/clases'
+        })
+      } catch (err) {
+        console.error('Error al notificar coach:', err)
+      }
     }
 
     revalidatePath('/admin/clases')
@@ -696,7 +703,7 @@ export async function solicitarClase(clase_id: string, mensaje?: string): Promis
       return { success: false, error: 'No autorizado. Solo coaches pueden solicitar clases.' }
     }
 
-    // Verificar que la clase existe y está disponible
+    // Verificar que la clase existe y no tiene coach
     const { data: clase } = await supabase
       .from('clases')
       .select('*')
@@ -711,11 +718,7 @@ export async function solicitarClase(clase_id: string, mensaje?: string): Promis
       return { success: false, error: 'Esta clase ya tiene un coach asignado' }
     }
 
-    if (clase.estado !== 'programada') {
-      return { success: false, error: 'Esta clase no está disponible para solicitudes' }
-    }
-
-    // Verificar que el coach no tenga otra clase a la misma hora
+    // Verificar que no tenga otra clase a la misma hora
     const fechaFin = new Date(new Date(clase.fecha_hora).getTime() + clase.duracion * 60000).toISOString()
     
     const { data: clasesTraslape } = await supabase
@@ -757,14 +760,16 @@ export async function solicitarClase(clase_id: string, mensaje?: string): Promis
     if (error) throw error
 
     // Notificar admin
-    await supabase.from('notificaciones').insert({
-      destinatario_id: clase.asignada_por || (await obtenerPrimerAdmin()),
-      tipo: 'nueva_solicitud',
-      titulo: 'Nueva Solicitud de Clase',
-      mensaje: `Un coach solicitó impartir la clase del ${new Date(clase.fecha_hora).toLocaleString('es-MX')}`,
-      url_accion: '/admin/clases/solicitudes',
-      data: { clase_id }
-    })
+    const adminId = await obtenerPrimerAdmin()
+    if (adminId) {
+      await supabase.from('notificaciones').insert({
+        destinatario_id: adminId,
+        tipo: 'solicitud_clase',
+        titulo: 'Nueva Solicitud de Clase',
+        mensaje: `Un coach ha solicitado impartir una clase`,
+        url_accion: '/admin/clases/solicitudes'
+      })
+    }
 
     revalidatePath('/coach/clases')
     revalidatePath('/admin/clases/solicitudes')
@@ -856,7 +861,6 @@ export async function obtenerSolicitudes(filtros?: {
       return { success: false, error: 'Perfil no encontrado' }
     }
 
-    // Query base
     let query = supabase
       .from('solicitudes_clases')
       .select(`
@@ -864,17 +868,13 @@ export async function obtenerSolicitudes(filtros?: {
         clase:clases (
           fecha_hora,
           duracion,
-          salon:salones (
-            nombre
-          ),
-          disciplina:disciplinas (
-            nombre
-          )
+          salon:salones (nombre),
+          disciplina:disciplinas (nombre)
         ),
         coach:coaches (
           total_clases_impartidas,
           calificacion_promedio,
-          profiles (
+          profiles!coaches_id_fkey (
             nombre_completo,
             foto_url
           )
@@ -885,9 +885,8 @@ export async function obtenerSolicitudes(filtros?: {
     // Filtros por rol
     if (profile.rol === 'coach') {
       query = query.eq('coach_id', session.user.id)
-    } else if (profile.rol !== 'admin') {
-      return { success: false, error: 'No autorizado' }
     }
+    // Admin ve todas
 
     // Filtros adicionales
     if (filtros) {
@@ -909,6 +908,105 @@ export async function obtenerSolicitudes(filtros?: {
     return { success: true, data: (data || []) as SolicitudConRelaciones[] }
   } catch (error) {
     console.error('Error al obtener solicitudes:', error)
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Error desconocido' 
+    }
+  }
+}
+
+// ============================================================================
+// ASIGNACIÓN DE COACHES
+// ============================================================================
+
+/**
+ * Admin asignar coach directamente a una clase (sin solicitudes)
+ */
+export async function asignarCoachDirecto(
+  clase_id: string, 
+  coach_id: string
+): Promise<ActionResponse> {
+  try {
+    const supabase = await createServerSupabaseClient()
+    
+    // Verificar autenticación y rol
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+    if (sessionError || !session) {
+      return { success: false, error: 'No autenticado' }
+    }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('rol')
+      .eq('id', session.user.id)
+      .single()
+
+    if (profile?.rol !== 'admin') {
+      return { success: false, error: 'No autorizado' }
+    }
+
+    // Verificar que clase existe
+    const { data: clase } = await supabase
+      .from('clases')
+      .select('*')
+      .eq('id', clase_id)
+      .single()
+
+    if (!clase) {
+      return { success: false, error: 'Clase no encontrada' }
+    }
+
+    // Verificar que coach no tenga otra clase a la misma hora
+    const fechaFin = new Date(new Date(clase.fecha_hora).getTime() + clase.duracion * 60000).toISOString()
+    
+    const { data: clasesTraslape } = await supabase
+      .from('clases')
+      .select('id')
+      .eq('coach_id', coach_id)
+      .neq('estado', 'cancelada')
+      .or(`and(fecha_hora.lte.${clase.fecha_hora},fecha_hora.gte.${fechaFin})`)
+
+    if (clasesTraslape && clasesTraslape.length > 0) {
+      return { 
+        success: false, 
+        error: 'El coach ya tiene una clase en ese horario' 
+      }
+    }
+
+    // Asignar coach
+    const { error: errorAsignar } = await supabase
+      .from('clases')
+      .update({
+        coach_id,
+        asignada_por: session.user.id,
+        asignada_at: new Date().toISOString()
+      })
+      .eq('id', clase_id)
+
+    if (errorAsignar) throw errorAsignar
+
+    // FIX 2: Notificar coach (no bloquear si falla)
+    try {
+      await supabase.from('notificaciones').insert({
+        destinatario_id: coach_id,
+        tipo: 'clase_asignada',
+        titulo: 'Nueva Clase Asignada',
+        mensaje: `Te asignaron una clase para el ${new Date(clase.fecha_hora).toLocaleString('es-MX')}`,
+        url_accion: '/coach/clases',
+        data: { clase_id }
+      })
+    } catch (err) {
+      console.error('Error al notificar coach:', err)
+      // No fallar - asignación exitosa aunque notificación falle
+    }
+
+    revalidatePath('/admin/clases')
+    revalidatePath('/coach/clases')
+    revalidatePath('/cliente/clases')
+
+    return { success: true, data: undefined }
+  } catch (error) {
+    console.error('Error al asignar coach directo:', error)
     return { 
       success: false, 
       error: error instanceof Error ? error.message : 'Error desconocido' 
@@ -1004,15 +1102,20 @@ export async function asignarCoachAClase(
       .neq('id', solicitud_id)
       .eq('estado', 'pendiente')
 
-    // SOLO notificar al coach asignado
-    await supabase.from('notificaciones').insert({
-      destinatario_id: solicitud.coach_id,
-      tipo: 'clase_asignada',
-      titulo: '¡Clase Asignada!',
-      mensaje: `Te asignaron la clase del ${new Date(clase.fecha_hora).toLocaleString('es-MX')}`,
-      url_accion: '/coach/clases',
-      data: { clase_id }
-    })
+    // FIX 3: SOLO notificar al coach asignado (no bloquear si falla)
+    try {
+      await supabase.from('notificaciones').insert({
+        destinatario_id: solicitud.coach_id,
+        tipo: 'clase_asignada',
+        titulo: '¡Clase Asignada!',
+        mensaje: `Te asignaron la clase del ${new Date(clase.fecha_hora).toLocaleString('es-MX')}`,
+        url_accion: '/coach/clases',
+        data: { clase_id }
+      })
+    } catch (err) {
+      console.error('Error al notificar coach:', err)
+      // No fallar - asignación exitosa aunque notificación falle
+    }
 
     revalidatePath('/admin/clases')
     revalidatePath('/admin/clases/solicitudes')
@@ -1022,96 +1125,6 @@ export async function asignarCoachAClase(
     return { success: true, data: undefined }
   } catch (error) {
     console.error('Error al asignar coach:', error)
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Error desconocido' 
-    }
-  }
-}
-
-/**
- * Admin asigna coach directamente a una clase (sin solicitudes)
- */
-export async function asignarCoachDirecto(
-  clase_id: string, 
-  coach_id: string
-): Promise<ActionResponse> {
-  try {
-    const supabase = await createServerSupabaseClient()
-    
-    // Verificar autenticación y rol
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-    if (sessionError || !session) {
-      return { success: false, error: 'No autenticado' }
-    }
-
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('rol')
-      .eq('id', session.user.id)
-      .single()
-
-    if (profile?.rol !== 'admin') {
-      return { success: false, error: 'No autorizado' }
-    }
-
-    // Verificar que clase existe
-    const { data: clase } = await supabase
-      .from('clases')
-      .select('*')
-      .eq('id', clase_id)
-      .single()
-
-    if (!clase) {
-      return { success: false, error: 'Clase no encontrada' }
-    }
-
-    // Verificar que coach no tenga otra clase a la misma hora
-    const fechaFin = new Date(new Date(clase.fecha_hora).getTime() + clase.duracion * 60000).toISOString()
-    
-    const { data: clasesTraslape } = await supabase
-      .from('clases')
-      .select('id')
-      .eq('coach_id', coach_id)
-      .neq('estado', 'cancelada')
-      .or(`and(fecha_hora.lte.${clase.fecha_hora},fecha_hora.gte.${fechaFin})`)
-
-    if (clasesTraslape && clasesTraslape.length > 0) {
-      return { 
-        success: false, 
-        error: 'El coach ya tiene una clase en ese horario' 
-      }
-    }
-
-    // Asignar coach
-    const { error: errorAsignar } = await supabase
-      .from('clases')
-      .update({
-        coach_id,
-        asignada_por: session.user.id,
-        asignada_at: new Date().toISOString()
-      })
-      .eq('id', clase_id)
-
-    if (errorAsignar) throw errorAsignar
-
-    // Notificar coach
-    await supabase.from('notificaciones').insert({
-      destinatario_id: coach_id,
-      tipo: 'clase_asignada',
-      titulo: 'Nueva Clase Asignada',
-      mensaje: `Te asignaron una clase para el ${new Date(clase.fecha_hora).toLocaleString('es-MX')}`,
-      url_accion: '/coach/clases',
-      data: { clase_id }
-    })
-
-    revalidatePath('/admin/clases')
-    revalidatePath('/coach/clases')
-    revalidatePath('/cliente/clases')
-
-    return { success: true, data: undefined }
-  } catch (error) {
-    console.error('Error al asignar coach directo:', error)
     return { 
       success: false, 
       error: error instanceof Error ? error.message : 'Error desconocido' 
@@ -1164,14 +1177,18 @@ export async function desasignarCoach(clase_id: string): Promise<ActionResponse>
 
     if (error) throw error
 
-    // Notificar coach
-    await supabase.from('notificaciones').insert({
-      destinatario_id: clase.coach_id,
-      tipo: 'clase_desasignada',
-      titulo: 'Clase Desasignada',
-      mensaje: `Ya no tienes asignada la clase del ${new Date(clase.fecha_hora).toLocaleString('es-MX')}`,
-      url_accion: '/coach/clases'
-    })
+    // Notificar coach (no bloquear si falla)
+    try {
+      await supabase.from('notificaciones').insert({
+        destinatario_id: clase.coach_id,
+        tipo: 'clase_desasignada',
+        titulo: 'Clase Desasignada',
+        mensaje: `Ya no tienes asignada la clase del ${new Date(clase.fecha_hora).toLocaleString('es-MX')}`,
+        url_accion: '/coach/clases'
+      })
+    } catch (err) {
+      console.error('Error al notificar coach:', err)
+    }
 
     revalidatePath('/admin/clases')
     revalidatePath('/coach/clases')
