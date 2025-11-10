@@ -146,7 +146,15 @@ export async function obtenerClases(filtros?: {
   try {
     const supabase = await createServerSupabaseClient()
     
+    console.log('🔍 DEBUG - Obteniendo clases con filtros:', filtros)
+    
     const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+    
+    console.log('🔍 DEBUG - Session:', { 
+      hasSession: !!session, 
+      userId: session?.user?.id,
+      error: sessionError 
+    })
     if (sessionError || !session) {
       return { success: false, error: 'No autenticado' }
     }
