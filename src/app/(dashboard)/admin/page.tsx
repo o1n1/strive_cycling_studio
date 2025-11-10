@@ -114,7 +114,7 @@ export default function AdminDashboard() {
       icono: '👥',
       href: '/admin/personal',
       color: 'from-[#FF006E] to-[#FF6B35]',
-      disponible: false
+      disponible: true
     },
     {
       nombre: 'Clases',
