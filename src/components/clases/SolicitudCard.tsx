@@ -1,12 +1,13 @@
+// src/components/clases/SolicitudCard.tsx
 'use client'
 
-// src/components/clases/SolicitudCard.tsx
 import { useState } from 'react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { asignarCoachAClase } from '@/lib/actions/clases-actions'
 import type { SolicitudConRelaciones } from '@/lib/actions/clases-actions'
+import { useToast } from '@/hooks/useToast'
 
 interface Props {
   solicitud: SolicitudConRelaciones
@@ -15,6 +16,7 @@ interface Props {
 
 export function SolicitudCard({ solicitud }: Props) {
   const router = useRouter()
+  const toast = useToast()
   const [cargando, setCargando] = useState(false)
 
   const manejarAsignar = async () => {
@@ -26,9 +28,10 @@ export function SolicitudCard({ solicitud }: Props) {
     const resultado = await asignarCoachAClase(solicitud.clase_id, solicitud.id)
 
     if (resultado.success) {
+      toast.exito(`✅ Coach asignado correctamente`)
       router.refresh()
     } else {
-      alert(`Error: ${resultado.error}`)
+      toast.error(`❌ ${resultado.error}`)
       setCargando(false)
     }
   }
@@ -53,22 +56,26 @@ export function SolicitudCard({ solicitud }: Props) {
                 className="w-full h-full object-cover"
               />
             ) : (
-              <span className="text-3xl">👤</span>
+              <span className="text-2xl">👤</span>
             )}
           </div>
 
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             <h4 className="text-white font-semibold text-lg mb-1">
               {solicitud.coach.profiles.nombre_completo}
             </h4>
-            <div className="flex items-center gap-3 text-sm text-white/60">
-              <div className="flex items-center gap-1">
-                <span>📊</span>
-                <span>{solicitud.coach.total_clases_impartidas} clases</span>
-              </div>
-              <div className="flex items-center gap-1">
+            
+            <div className="flex flex-wrap items-center gap-3 text-sm">
+              <div className="flex items-center gap-1.5 text-white/60">
                 <span>⭐</span>
-                <span>{solicitud.coach.calificacion_promedio.toFixed(1)}</span>
+                <span className="font-medium text-white">
+                  {Number(solicitud.coach.calificacion_promedio || 5).toFixed(1)}
+                </span>
+              </div>
+              
+              <div className="flex items-center gap-1.5 text-white/60">
+                <span>📊</span>
+                <span>{solicitud.coach.total_clases_impartidas || 0} clases</span>
               </div>
             </div>
           </div>
@@ -76,31 +83,20 @@ export function SolicitudCard({ solicitud }: Props) {
 
         {solicitud.mensaje && (
           <div className="p-3 rounded-xl bg-white/5 border border-white/10">
-            <p className="text-white/60 text-sm italic">
-              &quot;{solicitud.mensaje}&quot;
-            </p>
+            <p className="text-white/40 text-xs mb-1">Mensaje:</p>
+            <p className="text-white/80 text-sm">{solicitud.mensaje}</p>
           </div>
         )}
 
-        <div className="flex items-center gap-2 text-white/40 text-sm">
-          <span>🕐</span>
-          <span>
-            Solicitó {new Date(solicitud.created_at).toLocaleDateString('es-MX', {
-              day: 'numeric',
-              month: 'short',
-              hour: '2-digit',
-              minute: '2-digit'
-            })}
-          </span>
+        <div className="pt-2">
+          <button
+            onClick={manejarAsignar}
+            disabled={cargando}
+            className="w-full px-4 py-3 rounded-xl font-medium transition-all duration-300 bg-gradient-to-r from-[#E84A27] to-[#FF6B35] text-white hover:shadow-lg hover:shadow-[#E84A27]/25 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {cargando ? 'Asignando...' : '✅ Asignar a Esta Clase'}
+          </button>
         </div>
-
-        <button
-          onClick={manejarAsignar}
-          disabled={cargando}
-          className="w-full px-4 py-3 rounded-xl font-medium transition-all duration-300 bg-gradient-to-r from-[#E84A27] to-[#FF6B35] text-white hover:shadow-lg hover:shadow-[#E84A27]/25 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {cargando ? 'Asignando...' : 'Asignar Coach'}
-        </button>
       </div>
     </motion.div>
   )

@@ -8,6 +8,7 @@ import { motion } from 'framer-motion'
 import type { ClaseConRelaciones } from '@/lib/actions/clases-actions'
 import { cancelarClase, desasignarCoach, eliminarClase } from '@/lib/actions/clases-actions'
 import { useRouter } from 'next/navigation'
+import { useToast } from '@/hooks/useToast'
 
 interface ClaseCardProps {
   clase: ClaseConRelaciones
@@ -15,6 +16,7 @@ interface ClaseCardProps {
 
 export function ClaseCard({ clase }: ClaseCardProps) {
   const router = useRouter()
+  const toast = useToast()
   const [cargando, setCargando] = useState(false)
 
   const obtenerColorEstado = () => {
@@ -64,9 +66,10 @@ export function ClaseCard({ clase }: ClaseCardProps) {
     const resultado = await cancelarClase(clase.id)
     
     if (resultado.success) {
+      toast.exito('✅ Clase cancelada correctamente')
       router.refresh()
     } else {
-      alert(`Error: ${resultado.error}`)
+      toast.error(`❌ ${resultado.error}`)
     }
     setCargando(false)
   }
@@ -82,9 +85,10 @@ export function ClaseCard({ clase }: ClaseCardProps) {
     const resultado = await desasignarCoach(clase.id)
     
     if (resultado.success) {
+      toast.exito('✅ Coach desasignado')
       router.refresh()
     } else {
-      alert(`Error: ${resultado.error}`)
+      toast.error(`❌ ${resultado.error}`)
     }
     setCargando(false)
   }
@@ -107,11 +111,13 @@ export function ClaseCard({ clase }: ClaseCardProps) {
     const resultado = await eliminarClase(clase.id)
     
     if (resultado.success) {
+      toast.exito('✅ Clase eliminada')
+      router.push('/admin/clases')
       router.refresh()
     } else {
-      alert(`Error: ${resultado.error}`)
-      setCargando(false)
+      toast.error(`❌ ${resultado.error}`)
     }
+    setCargando(false)
   }
 
   const colorEstado = obtenerColorEstado()

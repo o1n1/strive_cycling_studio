@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import type { ClaseConRelaciones } from '@/lib/actions/clases-actions'
 import { solicitarClase, cancelarSolicitud } from '@/lib/actions/clases-actions'
+import { useToast } from '@/hooks/useToast'
 
 // ============================================================================
 // TYPES
@@ -27,8 +28,8 @@ interface ClaseCardCoachProps {
 
 export function ClaseCardCoach({ clase, tipo, solicitud }: ClaseCardCoachProps) {
   const router = useRouter()
+  const toast = useToast()
   const [cargando, setCargando] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
   // Calcular estado y colores
   const obtenerInfoEstado = () => {
@@ -69,20 +70,20 @@ export function ClaseCardCoach({ clase, tipo, solicitud }: ClaseCardCoachProps) 
   const manejarSolicitar = async () => {
     if (cargando) return
     
-    setError(null)
     setCargando(true)
 
     try {
       const result = await solicitarClase(clase.id)
       
       if (result.success) {
+        toast.exito('✅ Solicitud enviada correctamente')
         router.refresh()
       } else {
-        setError(result.error || 'Error al solicitar clase')
+        toast.error(`❌ ${result.error}`)
       }
     } catch (err) {
       const mensaje = err instanceof Error ? err.message : 'Error desconocido'
-      setError(mensaje)
+      toast.error(`❌ ${mensaje}`)
     } finally {
       setCargando(false)
     }
@@ -94,20 +95,20 @@ export function ClaseCardCoach({ clase, tipo, solicitud }: ClaseCardCoachProps) 
     const confirmar = window.confirm('¿Cancelar tu solicitud para esta clase?')
     if (!confirmar) return
 
-    setError(null)
     setCargando(true)
 
     try {
       const result = await cancelarSolicitud(solicitud.id)
       
       if (result.success) {
+        toast.exito('✅ Solicitud cancelada')
         router.refresh()
       } else {
-        setError(result.error || 'Error al cancelar solicitud')
+        toast.error(`❌ ${result.error}`)
       }
     } catch (err) {
       const mensaje = err instanceof Error ? err.message : 'Error desconocido'
-      setError(mensaje)
+      toast.error(`❌ ${mensaje}`)
     } finally {
       setCargando(false)
     }
@@ -201,13 +202,6 @@ export function ClaseCardCoach({ clase, tipo, solicitud }: ClaseCardCoachProps) 
               </div>
             </div>
           </div>
-
-          {/* Error */}
-          {error && (
-            <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
-              {error}
-            </div>
-          )}
 
           {/* Acciones según tipo */}
           <div className="flex flex-col gap-2">
