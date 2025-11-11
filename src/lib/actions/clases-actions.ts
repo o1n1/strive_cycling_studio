@@ -629,7 +629,7 @@ export async function eliminarClase(id: string): Promise<ActionResponse> {
       return { success: false, error: 'No autorizado' }
     }
 
-    // Verificar que no tenga reservas
+    // CRÍTICO: Verificar que no tenga reservas
     const { count } = await supabase
       .from('reservas')
       .select('*', { count: 'exact', head: true })
@@ -638,24 +638,12 @@ export async function eliminarClase(id: string): Promise<ActionResponse> {
     if (count && count > 0) {
       return { 
         success: false, 
-        error: `No se puede eliminar. La clase tiene ${count} reserva(s). Cancélala primero.` 
+        error: `No se puede eliminar. La clase tiene ${count} reserva(s).` 
       }
     }
 
-    // Verificar que no tenga solicitudes
-    const { count: countSolicitudes } = await supabase
-      .from('solicitudes_clases')
-      .select('*', { count: 'exact', head: true })
-      .eq('clase_id', id)
-
-    if (countSolicitudes && countSolicitudes > 0) {
-      return { 
-        success: false, 
-        error: `No se puede eliminar. La clase tiene ${countSolicitudes} solicitud(es).` 
-      }
-    }
-
-    // Eliminar
+    // Eliminar clase
+    // Las solicitudes se eliminan automáticamente por ON DELETE CASCADE
     const { error } = await supabase
       .from('clases')
       .delete()

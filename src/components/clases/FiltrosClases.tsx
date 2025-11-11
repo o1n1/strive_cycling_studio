@@ -11,7 +11,7 @@ interface Filtros {
 }
 
 interface Props {
-  onAplicar: (filtros: Filtros) => void
+  onAplicar?: (filtros: Filtros) => void // Ahora opcional
 }
 
 export function FiltrosClases({ onAplicar }: Props) {
@@ -23,13 +23,19 @@ export function FiltrosClases({ onAplicar }: Props) {
   })
 
   const aplicarFiltros = () => {
-    onAplicar(filtros)
+    // TODO: Implementar filtrado completo con URL params
+    // para permitir compartir URLs y SSR correcto
+    if (onAplicar) {
+      onAplicar(filtros)
+    }
   }
 
   const limpiarFiltros = () => {
     const filtrosVacios = { salon: '', disciplina: '', estado: '', coach: '' }
     setFiltros(filtrosVacios)
-    onAplicar(filtrosVacios)
+    if (onAplicar) {
+      onAplicar(filtrosVacios)
+    }
   }
 
   const hayFiltrosActivos = Object.values(filtros).some(v => v !== '')
@@ -117,9 +123,7 @@ export function FiltrosClases({ onAplicar }: Props) {
 
       <div className="mt-4 flex justify-end">
         <button
-          onClick=
-
-{aplicarFiltros}
+          onClick={aplicarFiltros}
           className="px-6 py-3 rounded-xl font-medium transition-all duration-300 bg-gradient-to-r from-[#E84A27] to-[#FF6B35] text-white hover:shadow-lg hover:shadow-[#E84A27]/25"
         >
           Aplicar Filtros
