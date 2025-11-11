@@ -6,7 +6,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { motion } from 'framer-motion'
 import type { ClaseConRelaciones } from '@/lib/actions/clases-actions'
-import { cancelarClase, desasignarCoach } from '@/lib/actions/clases-actions'
+import { cancelarClase, desasignarCoach, eliminarClase } from '@/lib/actions/clases-actions'
 import { useRouter } from 'next/navigation'
 
 interface ClaseCardProps {
@@ -17,7 +17,6 @@ export function ClaseCard({ clase }: ClaseCardProps) {
   const router = useRouter()
   const [cargando, setCargando] = useState(false)
 
-  // Determinar color según estado y asignación
   const obtenerColorEstado = () => {
     if (clase.estado === 'cancelada') return 'gray'
     if (clase.estado === 'completada') return 'blue'
@@ -90,49 +89,71 @@ export function ClaseCard({ clase }: ClaseCardProps) {
     setCargando(false)
   }
 
+  const manejarEliminar = async () => {
+    if (clase.reservas_count > 0) {
+      alert(`No se puede eliminar. La clase tiene ${clase.reservas_count} reserva(s).`)
+      return
+    }
+
+    if (!confirm('⚠️ ¿ELIMINAR esta clase permanentemente?\n\nEsta acción NO se puede deshacer.')) {
+      return
+    }
+
+    if (!confirm('¿Estás completamente seguro? Esta es la última advertencia.')) {
+      return
+    }
+
+    setCargando(true)
+    const resultado = await eliminarClase(clase.id)
+    
+    if (resultado.success) {
+      router.refresh()
+    } else {
+      alert(`Error: ${resultado.error}`)
+      setCargando(false)
+    }
+  }
+
   const colorEstado = obtenerColorEstado()
-  const colorDisciplina = obtenerColorDisciplina()
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="group relative overflow-hidden rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10 p-6 transition-all duration-300 hover:bg-white/10 hover:border-white/20 hover:shadow-lg hover:shadow-white/5"
+      whileHover={{ y: -4 }}
+      className="group"
     >
-      {/* Gradiente hover */}
-      <div className={`absolute inset-0 bg-gradient-to-br from-${colorDisciplina}/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300`} />
-      
-      <div className="relative">
-        <div className="flex items-start justify-between gap-4">
-          {/* Info Principal */}
-          <div className="flex-1 space-y-4">
-            {/* Fecha y hora */}
-            <div className="flex items-center gap-4">
-              <div className={`px-4 py-2 rounded-xl bg-${colorDisciplina}/10 border border-${colorDisciplina}/20`}>
-                <p className={`text-${colorDisciplina} font-semibold text-sm`}>
-                  {formatearHora(clase.fecha_hora)}
-                </p>
+      <div className="rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10 overflow-hidden transition-all duration-300 hover:bg-white/10 hover:border-white/20 hover:shadow-2xl hover:shadow-white/5">
+        <div className={`h-1 bg-gradient-to-r from-${obtenerColorDisciplina()} to-transparent`} />
+        
+        <div className="p-6">
+          <div className="flex items-start justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className={`w-12 h-12 rounded-xl bg-gradient-to-br from-${obtenerColorDisciplina()} to-transparent flex items-center justify-center text-2xl`}>
+                {clase.disciplina.tipo === 'cycling' ? '🚴' : '💪'}
               </div>
               <div>
-                <p className="text-white font-medium capitalize">
-                  {formatearFecha(clase.fecha_hora)}
-                </p>
+                <h3 className="text-white font-semibold text-lg">
+                  {clase.nombre_clase || clase.disciplina.nombre}
+                </h3>
                 <p className="text-white/60 text-sm">
-                  {clase.duracion} minutos
+                  {formatearHora(clase.fecha_hora)} • {clase.duracion} min
                 </p>
               </div>
             </div>
+          </div>
 
-            {/* Salón y Disciplina */}
-            <div className="flex items-center gap-6">
-              <div className="flex items-center gap-2">
-                <span className="text-2xl">🏢</span>
-                <div>
-                  <p className="text-white/40 text-xs">Salón</p>
-                  <p className="text-white font-medium">{clase.salon.nombre}</p>
-                </div>
-              </div>
+          <div className="mb-6 pb-6 border-b border-white/10">
+            <p className="text-white/90 font-medium">
+              {formatearFecha(clase.fecha_hora)}
+            </p>
+            <p className="text-white/60 text-sm mt-1">
+              {clase.salon.nombre}
+            </p>
+          </div>
 
+          <div className="space-y-4 mb-6">
+            <div className="flex items-center gap-3">
               <div className="flex items-center gap-2">
                 <span className="text-2xl">
                   {clase.disciplina.tipo === 'cycling' ? '🚴' : '💪'}
@@ -154,7 +175,6 @@ export function ClaseCard({ clase }: ClaseCardProps) {
               )}
             </div>
 
-            {/* Coach */}
             <div className="flex items-center gap-2">
               {clase.coach ? (
                 <>
@@ -184,7 +204,6 @@ export function ClaseCard({ clase }: ClaseCardProps) {
               )}
             </div>
 
-            {/* Capacidad */}
             <div className="flex items-center gap-2">
               <span className="text-lg">👥</span>
               <p className="text-white/60 text-sm">
@@ -192,16 +211,14 @@ export function ClaseCard({ clase }: ClaseCardProps) {
               </p>
               <div className="flex-1 h-2 bg-white/10 rounded-full overflow-hidden">
                 <div 
-                  className={`h-full bg-${colorDisciplina} transition-all duration-300`}
+                  className={`h-full bg-${obtenerColorDisciplina()} transition-all duration-300`}
                   style={{ width: `${(clase.reservas_count / clase.capacidad) * 100}%` }}
                 />
               </div>
             </div>
           </div>
 
-          {/* Estado y Acciones */}
           <div className="flex flex-col items-end gap-4">
-            {/* Badge Estado */}
             <div className={`px-4 py-2 rounded-xl ${
               colorEstado === 'green' ? 'bg-green-500/10 border border-green-500/20 text-green-400' :
               colorEstado === 'orange' ? 'bg-[#FF6B35]/10 border border-[#FF6B35]/20 text-[#FF6B35]' :
@@ -213,7 +230,6 @@ export function ClaseCard({ clase }: ClaseCardProps) {
               </p>
             </div>
 
-            {/* Botones */}
             {clase.estado === 'programada' && (
               <div className="flex flex-col gap-2 w-full">
                 {clase.coach_id ? (
@@ -247,17 +263,25 @@ export function ClaseCard({ clase }: ClaseCardProps) {
                 >
                   {cargando ? 'Cancelando...' : 'Cancelar Clase'}
                 </button>
+
+                {clase.reservas_count === 0 && (
+                  <button
+                    onClick={manejarEliminar}
+                    disabled={cargando}
+                    className="w-full px-4 py-2 rounded-xl text-sm font-medium transition-all duration-300 bg-red-900/20 border border-red-500/30 text-red-300 hover:bg-red-900/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {cargando ? 'Eliminando...' : '🗑️ Eliminar'}
+                  </button>
+                )}
               </div>
             )}
 
-            {clase.estado !== 'programada' && (
-              <Link
-                href={`/admin/clases/${clase.id}`}
-                className="w-full px-4 py-2 rounded-xl text-sm font-medium text-center transition-all duration-300 bg-white/5 border border-white/10 text-white hover:bg-white/10 hover:border-white/20"
-              >
-                Ver Detalles
-              </Link>
-            )}
+            <Link
+              href={`/admin/clases/${clase.id}`}
+              className="w-full px-4 py-2 rounded-xl text-sm font-medium text-center transition-all duration-300 bg-white/5 border border-white/10 text-white hover:bg-white/10 hover:border-white/20"
+            >
+              Ver Detalles
+            </Link>
           </div>
         </div>
       </div>
