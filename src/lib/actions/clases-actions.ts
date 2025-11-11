@@ -331,7 +331,10 @@ export async function crearClase(datos: CrearClaseInput): Promise<ActionResponse
       .single()
 
     if (profile?.rol !== 'admin') {
-      return { success: false, error: 'No autorizado. Solo administradores pueden crear clases.' }
+      return { 
+        success: false, 
+        error: 'No autorizado. Solo administradores pueden crear clases.' 
+      }
     }
 
     // Validar fecha en futuro
@@ -340,19 +343,15 @@ export async function crearClase(datos: CrearClaseInput): Promise<ActionResponse
       return { success: false, error: 'La fecha debe ser futura' }
     }
 
-    // Validar que no haya traslape en el mismo salón
-    const fechaFin = new Date(fechaClase.getTime() + datos.duracion * 60000).toISOString()
-    
-    const { data: traslapadas, error: errorTraslape } = await supabase
-      .from('clases')
-      .select('id')
-      .eq('salon_id', datos.salon_id)
-      .neq('estado', 'cancelada')
-      .or(`and(fecha_hora.lte.${datos.fecha_hora},fecha_hora.gte.${fechaFin})`)
+    // ✅ FIX: Validar traslape en salón
+    const hayTraslape = await validarTraslapeEnSalon(
+      supabase,
+      datos.salon_id,
+      datos.fecha_hora,
+      datos.duracion
+    )
 
-    if (errorTraslape) throw errorTraslape
-
-    if (traslapadas && traslapadas.length > 0) {
+    if (hayTraslape) {
       return { 
         success: false, 
         error: 'Ya existe una clase programada en ese salón a esa hora' 
@@ -385,7 +384,7 @@ export async function crearClase(datos: CrearClaseInput): Promise<ActionResponse
         descripcion: datos.descripcion || null,
         estado: 'programada',
         reservas_count: 0,
-        coach_id: null, // Sin asignar inicialmente
+        coach_id: null,
       })
       .select('id')
       .single()
@@ -407,6 +406,8 @@ export async function crearClase(datos: CrearClaseInput): Promise<ActionResponse
     }
   }
 }
+
+
 
 /**
  * Actualizar clase existente (solo admin)
@@ -664,6 +665,68 @@ export async function eliminarClase(id: string): Promise<ActionResponse> {
 }
 
 // ============================================================================
+// FIX: VALIDACIÓN DE CONFLICTOS CORRECTA
+// ============================================================================
+
+/**
+ * Helper: Validar traslape de horarios
+ * Una clase traslapa si: (inicio1 < fin2) AND (fin1 > inicio2)
+ */
+async function validarTraslapeEnSalon(
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+  salon_id: string,
+  fecha_hora_inicio: string,
+  duracion_minutos: number,
+  excluir_clase_id?: string
+): Promise<boolean> {
+  const fechaInicio = new Date(fecha_hora_inicio)
+  const fechaFin = new Date(fechaInicio.getTime() + duracion_minutos * 60000)
+
+  let query = supabase
+    .from('clases')
+    .select('id')
+    .eq('salon_id', salon_id)
+    .neq('estado', 'cancelada')
+    .lt('fecha_hora', fechaFin.toISOString())
+    .gte('fecha_hora', fechaInicio.toISOString())
+
+  if (excluir_clase_id) {
+    query = query.neq('id', excluir_clase_id)
+  }
+
+  const { data } = await query
+
+  return !!(data && data.length > 0)
+}
+
+async function validarTraslapeEnCoach(
+  supabase: Awaited<ReturnType<typeof createServerSupabaseClient>>,
+  coach_id: string,
+  fecha_hora_inicio: string,
+  duracion_minutos: number,
+  excluir_clase_id?: string
+): Promise<boolean> {
+  const fechaInicio = new Date(fecha_hora_inicio)
+  const fechaFin = new Date(fechaInicio.getTime() + duracion_minutos * 60000)
+
+  let query = supabase
+    .from('clases')
+    .select('id')
+    .eq('coach_id', coach_id)
+    .neq('estado', 'cancelada')
+    .lt('fecha_hora', fechaFin.toISOString())
+    .gte('fecha_hora', fechaInicio.toISOString())
+
+  if (excluir_clase_id) {
+    query = query.neq('id', excluir_clase_id)
+  }
+
+  const { data } = await query
+
+  return !!(data && data.length > 0)
+}
+
+// ============================================================================
 // SOLICITUDES DE COACHES
 // ============================================================================
 
@@ -671,7 +734,10 @@ export async function eliminarClase(id: string): Promise<ActionResponse> {
  * Coach solicita impartir una clase
  * Valida que no tenga otra clase a la misma hora
  */
-export async function solicitarClase(clase_id: string, mensaje?: string): Promise<ActionResponse> {
+export async function solicitarClase(
+  clase_id: string, 
+  mensaje?: string
+): Promise<ActionResponse> {
   try {
     const supabase = await createServerSupabaseClient()
     
@@ -688,7 +754,10 @@ export async function solicitarClase(clase_id: string, mensaje?: string): Promis
       .single()
 
     if (profile?.rol !== 'coach') {
-      return { success: false, error: 'No autorizado. Solo coaches pueden solicitar clases.' }
+      return { 
+        success: false, 
+        error: 'No autorizado. Solo coaches pueden solicitar clases.' 
+      }
     }
 
     // Verificar que la clase existe y no tiene coach
@@ -706,17 +775,15 @@ export async function solicitarClase(clase_id: string, mensaje?: string): Promis
       return { success: false, error: 'Esta clase ya tiene un coach asignado' }
     }
 
-    // Verificar que no tenga otra clase a la misma hora
-    const fechaFin = new Date(new Date(clase.fecha_hora).getTime() + clase.duracion * 60000).toISOString()
-    
-    const { data: clasesTraslape } = await supabase
-      .from('clases')
-      .select('id')
-      .eq('coach_id', session.user.id)
-      .neq('estado', 'cancelada')
-      .or(`and(fecha_hora.lte.${clase.fecha_hora},fecha_hora.gte.${fechaFin})`)
+    // ✅ FIX: Validar traslape en coach
+    const hayTraslape = await validarTraslapeEnCoach(
+      supabase,
+      session.user.id,
+      clase.fecha_hora,
+      clase.duracion
+    )
 
-    if (clasesTraslape && clasesTraslape.length > 0) {
+    if (hayTraslape) {
       return { 
         success: false, 
         error: 'Ya tienes una clase asignada en ese horario' 
@@ -944,17 +1011,15 @@ export async function asignarCoachDirecto(
       return { success: false, error: 'Clase no encontrada' }
     }
 
-    // Verificar que coach no tenga otra clase a la misma hora
-    const fechaFin = new Date(new Date(clase.fecha_hora).getTime() + clase.duracion * 60000).toISOString()
-    
-    const { data: clasesTraslape } = await supabase
-      .from('clases')
-      .select('id')
-      .eq('coach_id', coach_id)
-      .neq('estado', 'cancelada')
-      .or(`and(fecha_hora.lte.${clase.fecha_hora},fecha_hora.gte.${fechaFin})`)
+    // ✅ FIX: Validar traslape en coach
+    const hayTraslape = await validarTraslapeEnCoach(
+      supabase,
+      coach_id,
+      clase.fecha_hora,
+      clase.duracion
+    )
 
-    if (clasesTraslape && clasesTraslape.length > 0) {
+    if (hayTraslape) {
       return { 
         success: false, 
         error: 'El coach ya tiene una clase en ese horario' 
@@ -973,7 +1038,7 @@ export async function asignarCoachDirecto(
 
     if (errorAsignar) throw errorAsignar
 
-    // FIX 2: Notificar coach (no bloquear si falla)
+    // Notificar coach (no bloquear si falla)
     try {
       await supabase.from('notificaciones').insert({
         destinatario_id: coach_id,
@@ -985,7 +1050,6 @@ export async function asignarCoachDirecto(
       })
     } catch (err) {
       console.error('Error al notificar coach:', err)
-      // No fallar - asignación exitosa aunque notificación falle
     }
 
     revalidatePath('/admin/clases')
@@ -1001,6 +1065,7 @@ export async function asignarCoachDirecto(
     }
   }
 }
+
 
 /**
  * Admin asigna coach a una clase desde solicitudes

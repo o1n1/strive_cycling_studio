@@ -2,8 +2,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
+import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { Profile } from '@/lib/types/database.types'
 
@@ -12,42 +12,42 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode
 }) {
-  const router = useRouter()
   const pathname = usePathname()
-  const supabase = createClient()
-  
+  const router = useRouter()
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
   const [menuOpen, setMenuOpen] = useState(false)
 
   useEffect(() => {
-    const getProfile = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
+    const verificarSesion = async () => {
+      const supabase = createClient()
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
 
-      if (!user) {
+      if (sessionError || !session) {
         router.push('/login')
         return
       }
 
-      const { data: profileData } = await supabase
+      const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('*')
-        .eq('id', user.id)
+        .eq('id', session.user.id)
         .single()
 
-      if (profileData) {
-        setProfile(profileData)
+      if (profileError || !profileData) {
+        router.push('/login')
+        return
       }
 
+      setProfile(profileData)
       setLoading(false)
     }
 
-    getProfile()
-  }, [router, supabase])
+    verificarSesion()
+  }, [router])
 
   const handleLogout = async () => {
+    const supabase = createClient()
     await supabase.auth.signOut()
     router.push('/login')
   }
@@ -74,6 +74,7 @@ export default function DashboardLayout({
       { name: 'Espacios', href: '/admin/espacios', icon: '🏢' },
       { name: 'Personal', href: '/admin/personal', icon: '👥' },
       { name: 'Clases', href: '/admin/clases', icon: '📅' },
+      { name: 'Calendario', href: '/admin/calendario', icon: '🗓️' }, // ⭐ NUEVO
       { name: 'Clientes', href: '/admin/clientes', icon: '👤' },
       { name: 'Finanzas', href: '/admin/finanzas', icon: '💰' },
       { name: 'Reportes', href: '/admin/reportes', icon: '📈' },
@@ -125,36 +126,55 @@ export default function DashboardLayout({
                     strokeLinecap="round"
                     strokeLinejoin="round"
                     strokeWidth={2}
-                    d={menuOpen ? "M6 18L18 6M6 6l12 12" : "M4 6h16M4 12h16M4 18h16"}
+                    d={menuOpen ? 'M6 18L18 6M6 6l12 12' : 'M4 6h16M4 12h16M4 18h16'}
                   />
                 </svg>
               </button>
-              <Link href={`/${profile.rol}`} className="group">
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-[#E84A27] via-[#FF6B35] to-[#FF006E] bg-clip-text text-transparent group-hover:opacity-80 transition-opacity">
-                  STRIVE
-                </h1>
-              </Link>
+
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#E84A27] to-[#FF6B35] flex items-center justify-center font-bold text-white text-xl">
+                  S
+                </div>
+                <div className="hidden sm:block">
+                  <h1 className="text-white font-bold text-lg">Strive Studio</h1>
+                  <p className="text-white/40 text-xs capitalize">{profile.rol}</p>
+                </div>
+              </div>
             </div>
 
+            {/* Navegación desktop */}
+            <nav className="hidden lg:flex items-center gap-2">
+              {menuItems.slice(0, 5).map((item) => {
+                const isActive = pathname === item.href
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all duration-300 ${
+                      isActive
+                        ? 'bg-white/10 text-white font-medium'
+                        : 'text-white/60 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    <span>{item.icon}</span>
+                    <span className="text-sm">{item.name}</span>
+                  </Link>
+                )
+              })}
+            </nav>
+
             {/* Usuario y logout */}
-            <div className="flex items-center gap-4">
-              <div className="text-right hidden sm:block">
-                <p className="text-sm font-medium text-white">
-                  {profile.nombre_completo}
-                </p>
-                <p className="text-xs text-white/60 capitalize">{profile.rol}</p>
+            <div className="flex items-center gap-3">
+              <div className="hidden md:block text-right">
+                <p className="text-white font-medium text-sm">{profile.nombre_completo}</p>
+                <p className="text-white/40 text-xs">{profile.email}</p>
               </div>
               <button
                 onClick={handleLogout}
                 className="p-2 text-white/60 hover:text-white hover:bg-white/10 rounded-lg transition-all"
                 title="Cerrar sesión"
               >
-                <svg
-                  className="w-6 h-6"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -170,7 +190,7 @@ export default function DashboardLayout({
 
       <div className="flex">
         {/* Sidebar - Desktop */}
-        <aside className="hidden lg:block w-64 bg-black/20 backdrop-blur-xl border-r border-white/10 min-h-[calc(100vh-4rem)] sticky top-16">
+        <aside className="hidden lg:block w-64 min-h-[calc(100vh-4rem)] bg-black/20 backdrop-blur-xl border-r border-white/10">
           <nav className="p-4 space-y-1">
             {menuItems.map((item) => {
               const isActive = pathname === item.href
