@@ -29,7 +29,7 @@ export type MercadoPagoStatus =
   | 'refunded' 
   | 'charged_back'
 
-export type TipoDocumento = 
+  export type TipoDocumento = 
   | 'ine' 
   | 'comprobante_domicilio' 
   | 'contrato' 
@@ -37,6 +37,10 @@ export type TipoDocumento =
   | 'curp' 
   | 'certificacion' 
   | 'otro'
+  | 'certificado_estudios'
+  | 'certificaciones_fitness'
+  | 'antecedentes_penales'
+  | 'foto_profesional'
 
 export type TipoPenalizacion = 'no_show' | 'cancelacion_tardia'
 

@@ -3,139 +3,141 @@
 
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
-import type {
-  DocumentoPersonal,
-  RespuestaAction,
-  TipoPersonal
-} from '@/lib/types/personal.types'
-import type { TipoDocumento } from '@/lib/types/enums'
+import type { TipoDocumento, EstadoDocumento } from '@/lib/types/enums'
 
-// ============== SUBIR DOCUMENTO ==============
+// ============== INTERFACES ==============
 
-/**
- * Subir documento personal
- * Maneja versiones si el documento ya existe
- */
-export async function subirDocumento(
-  formData: FormData
-): Promise<RespuestaAction<DocumentoPersonal>> {
+export interface DocumentoPersonal {
+  id: string
+  coach_id: string | null
+  staff_id: string | null
+  tipo_documento: TipoDocumento
+  url_archivo: string
+  nombre_archivo: string
+  estado: EstadoDocumento
+  version: number
+  documento_anterior_id: string | null
+  revisado_por: string | null
+  revisado_at: string | null
+  comentarios_admin: string | null
+  created_at: string
+  updated_at: string
+}
+
+interface RespuestaExito<T = unknown> {
+  success: true
+  data: T
+  mensaje?: string
+}
+
+interface RespuestaError {
+  success: false
+  error: string
+}
+
+type RespuestaAction<T = unknown> = RespuestaExito<T> | RespuestaError
+
+// ============== UPLOAD DE DOCUMENTOS ==============
+
+export async function uploadDocumento(formData: FormData): Promise<RespuestaAction<DocumentoPersonal>> {
   try {
     const supabase = await createServerSupabaseClient()
 
     // Obtener usuario actual
-    const {
-      data: { user }
-    } = await supabase.auth.getUser()
-    if (!user) {
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
       return { success: false, error: 'No autenticado' }
     }
 
-    // Extraer datos del FormData
+    // Obtener datos del form
     const archivo = formData.get('archivo') as File
     const tipoDocumento = formData.get('tipo_documento') as TipoDocumento
-    const tipoPersonal = formData.get('tipo_personal') as TipoPersonal
+    const personalId = formData.get('personal_id') as string
+    const tipoPersonal = formData.get('tipo_personal') as 'coach' | 'staff'
 
-    if (!archivo) {
-      return { success: false, error: 'No se proporcionó archivo' }
+    if (!archivo || !tipoDocumento || !personalId) {
+      return { success: false, error: 'Datos incompletos' }
     }
 
-    if (!tipoDocumento) {
-      return { success: false, error: 'No se proporcionó tipo de documento' }
-    }
-
-    if (!tipoPersonal) {
-      return { success: false, error: 'No se proporcionó tipo de personal' }
+    // Validar tamaño (5MB)
+    if (archivo.size > 5 * 1024 * 1024) {
+      return { success: false, error: 'El archivo no puede superar 5MB' }
     }
 
     // Validar tipo de archivo
-    const tiposPermitidos = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg']
-    if (!tiposPermitidos.includes(archivo.type)) {
-      return {
-        success: false,
-        error: 'Tipo de archivo no permitido. Solo PDF o imágenes (JPG, PNG)'
-      }
+    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg', 'image/webp']
+    if (!allowedTypes.includes(archivo.type)) {
+      return { success: false, error: 'Tipo de archivo no permitido. Solo PDF o imágenes' }
     }
 
-    // Validar tamaño (10MB máximo)
-    const tamañoMaximo = 10 * 1024 * 1024 // 10MB
-    if (archivo.size > tamañoMaximo) {
-      return { success: false, error: 'El archivo es demasiado grande (máximo 10MB)' }
+    // Generar nombre único
+    const timestamp = Date.now()
+    const extension = archivo.name.split('.').pop()
+    const nombreArchivo = `${personalId}/${tipoDocumento}/${timestamp}.${extension}`
+
+    // Upload a Storage
+    const { error: uploadError } = await supabase.storage
+      .from('documentos-personal')
+      .upload(nombreArchivo, archivo, {
+        cacheControl: '3600',
+        upsert: false
+      })
+
+    if (uploadError) {
+      console.error('Error al subir archivo:', uploadError)
+      return { success: false, error: 'Error al subir el archivo' }
     }
 
-    // Verificar si ya existe un documento de este tipo
-    const columnaId = tipoPersonal === 'coach' ? 'coach_id' : 'staff_id'
+    // Obtener URL pública
+    const { data: { publicUrl } } = supabase.storage
+      .from('documentos-personal')
+      .getPublicUrl(nombreArchivo)
+
+    // Verificar si ya existe documento de este tipo
     const { data: documentoExistente } = await supabase
       .from('documentos_personal')
-      .select('id, version, url_archivo')
-      .eq(columnaId, user.id)
+      .select('id, version')
+      .eq(tipoPersonal === 'coach' ? 'coach_id' : 'staff_id', personalId)
       .eq('tipo_documento', tipoDocumento)
       .order('version', { ascending: false })
       .limit(1)
       .single()
 
-    const nuevaVersion = documentoExistente ? documentoExistente.version + 1 : 1
-
-    // Subir archivo a Storage
-    const extension = archivo.name.split('.').pop()
-    const timestamp = Date.now()
-    const rutaArchivo = `${tipoPersonal}/${user.id}/${tipoDocumento}_v${nuevaVersion}_${timestamp}.${extension}`
-
-    const { error: errorUpload } = await supabase.storage
-      .from('documentos-personal')
-      .upload(rutaArchivo, archivo, {
-        cacheControl: '3600',
-        upsert: false
-      })
-
-    if (errorUpload) {
-      console.error('Error al subir archivo:', errorUpload)
-      return { success: false, error: 'Error al subir archivo' }
+    // Preparar datos
+    const datosDocumento = {
+      [tipoPersonal === 'coach' ? 'coach_id' : 'staff_id']: personalId,
+      tipo_documento: tipoDocumento,
+      url_archivo: publicUrl,
+      nombre_archivo: archivo.name,
+      estado: 'pendiente' as EstadoDocumento,
+      version: documentoExistente ? documentoExistente.version + 1 : 1,
+      documento_anterior_id: documentoExistente?.id || null
     }
 
-    // Obtener URL pública del archivo
-    const { data: urlData } = supabase.storage
-      .from('documentos-personal')
-      .getPublicUrl(rutaArchivo)
-
-    // Crear registro en base de datos
-    const { data: documento, error: errorDB } = await supabase
+    // Insertar en BD
+    const { data: documento, error: dbError } = await supabase
       .from('documentos_personal')
-      .insert({
-        [columnaId]: user.id,
-        tipo_documento: tipoDocumento,
-        nombre_archivo: archivo.name,
-        url_archivo: urlData.publicUrl,
-        estado: 'pendiente',
-        version: nuevaVersion,
-        documento_anterior_id: documentoExistente?.id || null
-      })
+      .insert(datosDocumento)
       .select()
       .single()
 
-    if (errorDB) {
-      console.error('Error al crear registro:', errorDB)
-      // Intentar eliminar archivo subido
-      await supabase.storage.from('documentos-personal').remove([rutaArchivo])
-      return { success: false, error: 'Error al guardar información del documento' }
+    if (dbError || !documento) {
+      console.error('Error al guardar en BD:', dbError)
+      // Eliminar archivo de storage
+      await supabase.storage.from('documentos-personal').remove([nombreArchivo])
+      return { success: false, error: 'Error al guardar el documento' }
     }
 
-    // Si es una nueva versión, notificar al admin
-    if (documentoExistente) {
-      await supabase.from('notificaciones').insert({
-        tipo: 'documento_actualizado',
-        titulo: 'Documento actualizado',
-        mensaje: `${tipoPersonal === 'coach' ? 'Coach' : 'Staff'} ha subido una nueva versión del documento: ${tipoDocumento}`,
-        data: {
-          documento_id: documento.id,
-          user_id: user.id
-        }
-      })
-    }
+    revalidatePath('/onboarding')
+    revalidatePath('/admin/personal')
 
-    revalidatePath(`/${tipoPersonal}/perfil`)
-    return { success: true, data: documento as DocumentoPersonal }
+    return {
+      success: true,
+      data: documento as DocumentoPersonal,
+      mensaje: 'Documento subido correctamente'
+    }
   } catch (error) {
-    console.error('Error en subirDocumento:', error)
+    console.error('Error en uploadDocumento:', error)
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Error desconocido'
@@ -145,33 +147,27 @@ export async function subirDocumento(
 
 // ============== OBTENER DOCUMENTOS ==============
 
-/**
- * Obtener documentos de un coach o staff
- */
-export async function obtenerDocumentos(
-  userId: string,
-  tipoPersonal: TipoPersonal
+export async function obtenerDocumentosPersonal(
+  personalId: string,
+  tipoPersonal: 'coach' | 'staff'
 ): Promise<RespuestaAction<DocumentoPersonal[]>> {
   try {
     const supabase = await createServerSupabaseClient()
 
-    const columnaId = tipoPersonal === 'coach' ? 'coach_id' : 'staff_id'
-
-    const { data, error } = await supabase
+    const { data: documentos, error } = await supabase
       .from('documentos_personal')
       .select('*')
-      .eq(columnaId, userId)
-      .order('tipo_documento', { ascending: true })
-      .order('version', { ascending: false })
+      .eq(tipoPersonal === 'coach' ? 'coach_id' : 'staff_id', personalId)
+      .order('created_at', { ascending: false })
 
     if (error) {
       console.error('Error al obtener documentos:', error)
       return { success: false, error: 'Error al obtener documentos' }
     }
 
-    return { success: true, data: data as DocumentoPersonal[] }
+    return { success: true, data: (documentos || []) as DocumentoPersonal[] }
   } catch (error) {
-    console.error('Error en obtenerDocumentos:', error)
+    console.error('Error en obtenerDocumentosPersonal:', error)
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Error desconocido'
@@ -179,175 +175,75 @@ export async function obtenerDocumentos(
   }
 }
 
-/**
- * Obtener documentos pendientes de revisión (admin)
- */
-export async function obtenerDocumentosPendientes(): Promise<
-  RespuestaAction<
-    (DocumentoPersonal & {
-      nombre_personal: string
-      tipo_personal: TipoPersonal
-    })[]
-  >
-> {
-  try {
-    const supabase = await createServerSupabaseClient()
+// ============== APROBAR DOCUMENTO ==============
 
-    // Verificar que el usuario es admin
-    const {
-      data: { user }
-    } = await supabase.auth.getUser()
-    if (!user) {
-      return { success: false, error: 'No autenticado' }
-    }
-
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('rol')
-      .eq('id', user.id)
-      .single()
-
-    if (profile?.rol !== 'admin') {
-      return { success: false, error: 'No autorizado' }
-    }
-
-    // Obtener documentos pendientes de coaches
-    const { data: docsCoaches } = await supabase
-      .from('documentos_personal')
-      .select(
-        `
-        *,
-        coach:coaches!inner(
-          id,
-          profile:profiles!inner(nombre_completo)
-        )
-      `
-      )
-      .eq('estado', 'pendiente')
-      .not('coach_id', 'is', null)
-
-    // Obtener documentos pendientes de staff
-    const { data: docsStaff } = await supabase
-      .from('documentos_personal')
-      .select(
-        `
-        *,
-        staff:staff!inner(
-          id,
-          profile:profiles!inner(nombre_completo)
-        )
-      `
-      )
-      .eq('estado', 'pendiente')
-      .not('staff_id', 'is', null)
-
-    // Formatear resultados
-    const documentos = [
-      ...(docsCoaches?.map((doc) => ({
-        ...doc,
-        nombre_personal: doc.coach.profile.nombre_completo,
-        tipo_personal: 'coach' as TipoPersonal
-      })) || []),
-      ...(docsStaff?.map((doc) => ({
-        ...doc,
-        nombre_personal: doc.staff.profile.nombre_completo,
-        tipo_personal: 'staff' as TipoPersonal
-      })) || [])
-    ]
-
-    // Ordenar por fecha de creación (más recientes primero)
-    documentos.sort(
-      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-    )
-
-    return { success: true, data: documentos }
-  } catch (error) {
-    console.error('Error en obtenerDocumentosPendientes:', error)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Error desconocido'
-    }
-  }
-}
-
-// ============== REVISAR DOCUMENTOS (ADMIN) ==============
-
-/**
- * Aprobar documento
- */
 export async function aprobarDocumento(
-  documentoId: string,
-  comentarios?: string
+  documentoId: string
 ): Promise<RespuestaAction<DocumentoPersonal>> {
   try {
     const supabase = await createServerSupabaseClient()
 
-    // Verificar que el usuario es admin
-    const {
-      data: { user }
-    } = await supabase.auth.getUser()
-    if (!user) {
+    // Verificar que es admin
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
       return { success: false, error: 'No autenticado' }
     }
 
-    const { data: profile } = await supabase
+    const { data: perfil } = await supabase
       .from('profiles')
       .select('rol')
       .eq('id', user.id)
       .single()
 
-    if (profile?.rol !== 'admin') {
+    if (perfil?.rol !== 'admin') {
       return { success: false, error: 'No autorizado' }
     }
 
-    // Aprobar documento
+    // Actualizar documento
     const { data: documento, error } = await supabase
       .from('documentos_personal')
       .update({
-        estado: 'aprobado',
+        estado: 'aprobado' as EstadoDocumento,
         revisado_por: user.id,
         revisado_at: new Date().toISOString(),
-        comentarios_admin: comentarios || null
+        comentarios_admin: null
       })
       .eq('id', documentoId)
       .select()
       .single()
 
-    if (error) {
+    if (error || !documento) {
       console.error('Error al aprobar documento:', error)
       return { success: false, error: 'Error al aprobar documento' }
     }
 
     // Verificar si todos los documentos están aprobados
-    const userId = documento.coach_id || documento.staff_id
+    const personalId = documento.coach_id || documento.staff_id
     const tipoPersonal = documento.coach_id ? 'coach' : 'staff'
-    const columnaId = tipoPersonal === 'coach' ? 'coach_id' : 'staff_id'
 
-    const { data: todosDocumentos } = await supabase
-      .from('documentos_personal')
-      .select('estado')
-      .eq(columnaId, userId)
+    if (personalId) {
+      const { data: todosDocumentos } = await supabase
+        .from('documentos_personal')
+        .select('estado')
+        .eq(tipoPersonal === 'coach' ? 'coach_id' : 'staff_id', personalId)
 
-    const todosAprobados = todosDocumentos?.every((doc) => doc.estado === 'aprobado')
+      const todosAprobados = todosDocumentos?.every((doc: { estado: string }) => doc.estado === 'aprobado')
 
-    // Si todos están aprobados, actualizar flag
-    if (todosAprobados && userId) {
-      const tabla = tipoPersonal === 'coach' ? 'coaches' : 'staff'
-      await supabase.from(tabla).update({ documentos_completos: true }).eq('id', userId)
-
-      // Notificar al usuario
-      await supabase.from('notificaciones').insert({
-        destinatario_id: userId,
-        tipo: 'documentos_aprobados',
-        titulo: '¡Todos tus documentos han sido aprobados!',
-        mensaje: 'Tu perfil está siendo revisado para aprobación final.',
-        icono: '✅'
-      })
+      if (todosAprobados) {
+        // Actualizar flag documentos_completos
+        await supabase
+          .from(tipoPersonal === 'coach' ? 'coaches' : 'staff')
+          .update({ documentos_completos: true })
+          .eq('id', personalId)
+      }
     }
 
     revalidatePath('/admin/personal')
-    revalidatePath(`/admin/personal/${userId}`)
-    return { success: true, data: documento as DocumentoPersonal }
+    return {
+      success: true,
+      data: documento as DocumentoPersonal,
+      mensaje: 'Documento aprobado'
+    }
   } catch (error) {
     console.error('Error en aprobarDocumento:', error)
     return {
@@ -357,9 +253,8 @@ export async function aprobarDocumento(
   }
 }
 
-/**
- * Rechazar documento
- */
+// ============== RECHAZAR DOCUMENTO ==============
+
 export async function rechazarDocumento(
   documentoId: string,
   comentarios: string
@@ -367,40 +262,31 @@ export async function rechazarDocumento(
   try {
     const supabase = await createServerSupabaseClient()
 
-    // Verificar que el usuario es admin
-    const {
-      data: { user }
-    } = await supabase.auth.getUser()
-    if (!user) {
+    // Verificar que es admin
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
       return { success: false, error: 'No autenticado' }
     }
 
-    const { data: profile } = await supabase
+    const { data: perfil } = await supabase
       .from('profiles')
       .select('rol')
       .eq('id', user.id)
       .single()
 
-    if (profile?.rol !== 'admin') {
+    if (perfil?.rol !== 'admin') {
       return { success: false, error: 'No autorizado' }
     }
 
     if (!comentarios.trim()) {
-      return { success: false, error: 'Debes proporcionar comentarios para el rechazo' }
+      return { success: false, error: 'Debes proporcionar una razón para rechazar' }
     }
 
-    // Obtener info del documento antes de rechazar
-    const { data: docInfo } = await supabase
-      .from('documentos_personal')
-      .select('coach_id, staff_id')
-      .eq('id', documentoId)
-      .single()
-
-    // Rechazar documento
+    // Actualizar documento
     const { data: documento, error } = await supabase
       .from('documentos_personal')
       .update({
-        estado: 'rechazado',
+        estado: 'rechazado' as EstadoDocumento,
         revisado_por: user.id,
         revisado_at: new Date().toISOString(),
         comentarios_admin: comentarios
@@ -409,30 +295,17 @@ export async function rechazarDocumento(
       .select()
       .single()
 
-    if (error) {
+    if (error || !documento) {
       console.error('Error al rechazar documento:', error)
       return { success: false, error: 'Error al rechazar documento' }
     }
 
-    // Notificar al usuario
-    const userId = docInfo?.coach_id || docInfo?.staff_id
-    if (userId) {
-      await supabase.from('notificaciones').insert({
-        destinatario_id: userId,
-        tipo: 'documento_rechazado',
-        titulo: 'Documento rechazado',
-        mensaje: `Uno de tus documentos ha sido rechazado. Revisa los comentarios y sube una nueva versión.`,
-        icono: '❌',
-        data: {
-          documento_id: documentoId,
-          comentarios
-        }
-      })
-    }
-
     revalidatePath('/admin/personal')
-    revalidatePath(`/admin/personal/${userId}`)
-    return { success: true, data: documento as DocumentoPersonal }
+    return {
+      success: true,
+      data: documento as DocumentoPersonal,
+      mensaje: 'Documento rechazado'
+    }
   } catch (error) {
     console.error('Error en rechazarDocumento:', error)
     return {
@@ -442,78 +315,47 @@ export async function rechazarDocumento(
   }
 }
 
-/**
- * Eliminar documento
- */
+// ============== ELIMINAR DOCUMENTO ==============
+
 export async function eliminarDocumento(
   documentoId: string
 ): Promise<RespuestaAction<void>> {
   try {
     const supabase = await createServerSupabaseClient()
 
-    // Obtener info del documento
-    const { data: documento } = await supabase
+    // Obtener documento
+    const { data: documento, error: fetchError } = await supabase
       .from('documentos_personal')
-      .select('*')
+      .select('url_archivo')
       .eq('id', documentoId)
       .single()
 
-    if (!documento) {
+    if (fetchError || !documento) {
       return { success: false, error: 'Documento no encontrado' }
     }
 
-    // Verificar permisos (solo el dueño o admin)
-    const {
-      data: { user }
-    } = await supabase.auth.getUser()
-    if (!user) {
-      return { success: false, error: 'No autenticado' }
+    // Extraer path del Storage de la URL
+    const urlParts = documento.url_archivo.split('/documentos-personal/')
+    const storagePath = urlParts[1]
+
+    // Eliminar de Storage
+    if (storagePath) {
+      await supabase.storage.from('documentos-personal').remove([storagePath])
     }
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('rol')
-      .eq('id', user.id)
-      .single()
-
-    const esAdmin = profile?.rol === 'admin'
-    const esDueño =
-      documento.coach_id === user.id || documento.staff_id === user.id
-
-    if (!esAdmin && !esDueño) {
-      return { success: false, error: 'No autorizado' }
-    }
-
-    // Extraer ruta del archivo de la URL
-    const urlObj = new URL(documento.url_archivo)
-    const rutaArchivo = urlObj.pathname.split('/storage/v1/object/public/documentos-personal/')[1]
-
-    // Eliminar archivo de Storage
-    if (rutaArchivo) {
-      const { error: errorStorage } = await supabase.storage
-        .from('documentos-personal')
-        .remove([rutaArchivo])
-
-      if (errorStorage) {
-        console.error('Error al eliminar archivo:', errorStorage)
-      }
-    }
-
-    // Eliminar registro de base de datos
-    const { error: errorDB } = await supabase
+    // Eliminar de BD
+    const { error: deleteError } = await supabase
       .from('documentos_personal')
       .delete()
       .eq('id', documentoId)
 
-    if (errorDB) {
-      console.error('Error al eliminar documento:', errorDB)
+    if (deleteError) {
+      console.error('Error al eliminar documento:', deleteError)
       return { success: false, error: 'Error al eliminar documento' }
     }
 
-    const userId = documento.coach_id || documento.staff_id
     revalidatePath('/admin/personal')
-    revalidatePath(`/admin/personal/${userId}`)
-    return { success: true, data: undefined }
+    return { success: true, data: undefined, mensaje: 'Documento eliminado' }
   } catch (error) {
     console.error('Error en eliminarDocumento:', error)
     return {

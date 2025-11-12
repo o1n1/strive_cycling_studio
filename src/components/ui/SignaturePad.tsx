@@ -1,67 +1,89 @@
-// src/components/ui/SignaturePad.tsx
 'use client'
 
-import React, { useRef, useState, useEffect } from 'react'
-import { cn } from '@/lib/utils'
+import { useRef, useState, useEffect } from 'react'
 
 interface SignaturePadProps {
-  onSave: (signature: string) => void
-  className?: string
+  onFirmaCompleta?: (firmaBase64: string) => void
+  onSave?: (firmaBase64: string) => void // Compatibilidad con registro existente
+  firmaExistente?: string | null
+  altura?: number
 }
 
-export function SignaturePad({ onSave, className }: SignaturePadProps) {
+export function SignaturePad({
+  onFirmaCompleta,
+  onSave,
+  firmaExistente,
+  altura = 200
+}: SignaturePadProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const [isDrawing, setIsDrawing] = useState(false)
-  const [isEmpty, setIsEmpty] = useState(true)
+  const [dibujando, setDibujando] = useState(false)
+  const [firmaGuardada, setFirmaGuardada] = useState(false)
 
   useEffect(() => {
+    if (firmaExistente && canvasRef.current) {
+      const canvas = canvasRef.current
+      const ctx = canvas.getContext('2d')
+      const img = new Image()
+      img.onload = () => {
+        ctx?.drawImage(img, 0, 0, canvas.width, canvas.height)
+        setFirmaGuardada(true)
+      }
+      img.src = firmaExistente
+    }
+  }, [firmaExistente])
+
+  const iniciarDibujo = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current
     if (!canvas) return
 
+    const rect = canvas.getBoundingClientRect()
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    // Configurar canvas
-    ctx.strokeStyle = '#1A1814'
+    setDibujando(true)
+    setFirmaGuardada(false)
+
+    const x = 'touches' in e
+      ? e.touches[0].clientX - rect.left
+      : e.clientX - rect.left
+    const y = 'touches' in e
+      ? e.touches[0].clientY - rect.top
+      : e.clientY - rect.top
+
+    ctx.beginPath()
+    ctx.moveTo(x, y)
+  }
+
+  const dibujar = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    if (!dibujando) return
+
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const rect = canvas.getBoundingClientRect()
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    const x = 'touches' in e
+      ? e.touches[0].clientX - rect.left
+      : e.clientX - rect.left
+    const y = 'touches' in e
+      ? e.touches[0].clientY - rect.top
+      : e.clientY - rect.top
+
+    ctx.lineTo(x, y)
+    ctx.strokeStyle = '#FFFFFF'
     ctx.lineWidth = 2
     ctx.lineCap = 'round'
     ctx.lineJoin = 'round'
-  }, [])
-
-  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-
-    const rect = canvas.getBoundingClientRect()
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-
-    setIsDrawing(true)
-    setIsEmpty(false)
-
-    ctx.beginPath()
-    ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top)
-  }
-
-  const draw = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isDrawing) return
-
-    const canvas = canvasRef.current
-    if (!canvas) return
-
-    const rect = canvas.getBoundingClientRect()
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-
-    ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top)
     ctx.stroke()
   }
 
-  const stopDrawing = () => {
-    setIsDrawing(false)
+  const finalizarDibujo = () => {
+    setDibujando(false)
   }
 
-  const clearSignature = () => {
+  const limpiar = () => {
     const canvas = canvasRef.current
     if (!canvas) return
 
@@ -69,91 +91,73 @@ export function SignaturePad({ onSave, className }: SignaturePadProps) {
     if (!ctx) return
 
     ctx.clearRect(0, 0, canvas.width, canvas.height)
-    setIsEmpty(true)
+    setFirmaGuardada(false)
   }
 
-  const saveSignature = () => {
-    const canvas = canvasRef.current
-    if (!canvas || isEmpty) return
-
-    const dataURL = canvas.toDataURL('image/png')
-    onSave(dataURL)
-  }
-
-  // Touch events para móviles
-  const handleTouchStart = (e: React.TouchEvent<HTMLCanvasElement>) => {
-    e.preventDefault()
+  const guardarFirma = () => {
     const canvas = canvasRef.current
     if (!canvas) return
 
-    const rect = canvas.getBoundingClientRect()
+    // Verificar que hay contenido
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    const touch = e.touches[0]
-    setIsDrawing(true)
-    setIsEmpty(false)
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+    const hasContent = imageData.data.some(channel => channel !== 0)
 
-    ctx.beginPath()
-    ctx.moveTo(touch.clientX - rect.left, touch.clientY - rect.top)
-  }
+    if (!hasContent) {
+      alert('Por favor, firma primero antes de guardar')
+      return
+    }
 
-  const handleTouchMove = (e: React.TouchEvent<HTMLCanvasElement>) => {
-    e.preventDefault()
-    if (!isDrawing) return
-
-    const canvas = canvasRef.current
-    if (!canvas) return
-
-    const rect = canvas.getBoundingClientRect()
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-
-    const touch = e.touches[0]
-    ctx.lineTo(touch.clientX - rect.left, touch.clientY - rect.top)
-    ctx.stroke()
-  }
-
-  const handleTouchEnd = () => {
-    setIsDrawing(false)
+    const firmaBase64 = canvas.toDataURL('image/png')
+    
+    // Llamar ambas callbacks (compatibilidad)
+    onFirmaCompleta?.(firmaBase64)
+    onSave?.(firmaBase64)
+    
+    setFirmaGuardada(true)
   }
 
   return (
-    <div className={cn('space-y-4', className)}>
-      <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 bg-gray-50">
+    <div className="space-y-4">
+      {/* Canvas */}
+      <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4">
         <canvas
           ref={canvasRef}
-          width={500}
-          height={200}
-          className="w-full cursor-crosshair bg-white rounded-lg"
-          onMouseDown={startDrawing}
-          onMouseMove={draw}
-          onMouseUp={stopDrawing}
-          onMouseLeave={stopDrawing}
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
+          width={600}
+          height={altura}
+          className="w-full bg-white/10 rounded-lg cursor-crosshair touch-none"
+          onMouseDown={iniciarDibujo}
+          onMouseMove={dibujar}
+          onMouseUp={finalizarDibujo}
+          onMouseLeave={finalizarDibujo}
+          onTouchStart={iniciarDibujo}
+          onTouchMove={dibujar}
+          onTouchEnd={finalizarDibujo}
         />
-        <p className="text-sm text-gray-500 mt-2 text-center">
-          Firma aquí con tu dedo o mouse
+        <p className="text-white/40 text-sm mt-2 text-center">
+          Firma con tu mouse, trackpad o dedo
         </p>
       </div>
 
+      {/* Botones */}
       <div className="flex gap-3">
         <button
           type="button"
-          onClick={clearSignature}
-          className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+          onClick={limpiar}
+          className="flex-1 bg-white/5 hover:bg-white/10 text-white font-medium py-3 rounded-xl border border-white/10 transition-all duration-300"
         >
           Limpiar
         </button>
+
         <button
           type="button"
-          onClick={saveSignature}
-          disabled={isEmpty}
-          className="flex-1 px-4 py-2 bg-[#AE3F21] text-white rounded-lg hover:bg-[#8E3219] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          onClick={guardarFirma}
+          disabled={firmaGuardada}
+          className="flex-1 bg-gradient-to-r from-[#E84A27] to-[#FF6B35] text-white font-semibold py-3 rounded-xl hover:shadow-lg hover:shadow-[#E84A27]/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
         >
-          Guardar Firma
+          {firmaGuardada ? '✓ Firma Guardada' : 'Guardar Firma'}
         </button>
       </div>
     </div>
