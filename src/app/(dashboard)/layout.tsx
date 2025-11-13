@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { Profile } from '@/lib/types/database.types'
+import NotificationCenter from '@/components/notificaciones/NotificationCenter'
 
 export default function DashboardLayout({
   children,
@@ -74,7 +75,7 @@ export default function DashboardLayout({
       { name: 'Espacios', href: '/admin/espacios', icon: '🏢' },
       { name: 'Personal', href: '/admin/personal', icon: '👥' },
       { name: 'Clases', href: '/admin/clases', icon: '📅' },
-      { name: 'Calendario', href: '/admin/calendario', icon: '🗓️' }, // ⭐ NUEVO
+      { name: 'Calendario', href: '/admin/calendario', icon: '🗓️' },
       { name: 'Clientes', href: '/admin/clientes', icon: '👤' },
       { name: 'Finanzas', href: '/admin/finanzas', icon: '💰' },
       { name: 'Reportes', href: '/admin/reportes', icon: '📈' },
@@ -152,23 +153,29 @@ export default function DashboardLayout({
                     href={item.href}
                     className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all duration-300 ${
                       isActive
-                        ? 'bg-white/10 text-white font-medium'
-                        : 'text-white/60 hover:text-white hover:bg-white/5'
+                        ? 'bg-gradient-to-r from-[#E84A27] to-[#FF6B35] text-white shadow-lg shadow-[#E84A27]/50'
+                        : 'text-white/70 hover:text-white hover:bg-white/10'
                     }`}
                   >
-                    <span>{item.icon}</span>
-                    <span className="text-sm">{item.name}</span>
+                    <span className="text-xl">{item.icon}</span>
+                    <span className="font-medium">{item.name}</span>
                   </Link>
                 )
               })}
             </nav>
 
-            {/* Usuario y logout */}
+            {/* ⭐ NUEVO: NotificationCenter + Usuario y logout */}
             <div className="flex items-center gap-3">
+              {/* Centro de Notificaciones */}
+              <NotificationCenter />
+
+              {/* Info Usuario (oculta en mobile) */}
               <div className="hidden md:block text-right">
                 <p className="text-white font-medium text-sm">{profile.nombre_completo}</p>
                 <p className="text-white/40 text-xs">{profile.email}</p>
               </div>
+
+              {/* Botón Logout */}
               <button
                 onClick={handleLogout}
                 className="p-2 text-white/60 hover:text-white hover:bg-white/10 rounded-lg transition-all"

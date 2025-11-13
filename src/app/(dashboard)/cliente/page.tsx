@@ -1,123 +1,328 @@
 // src/app/(dashboard)/cliente/page.tsx
-'use client'
+import { Suspense } from 'react'
+import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { redirect } from 'next/navigation'
+import Link from 'next/link'
+import { DashboardBackground } from '@/components/ui/DashboardBackground'
+import { obtenerEstadisticasCliente } from '@/lib/actions/reservas-actions'
 
-import { Card, CardContent, CardHeader } from '@/components/ui/Card'
+// ============================================================================
+// CONTENIDO DEL DASHBOARD
+// ============================================================================
 
-export default function ClienteDashboard() {
+async function DashboardContent() {
+  const supabase = await createServerSupabaseClient()
+  
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('nombre_completo')
+    .eq('id', user.id)
+    .single()
+
+  // Obtener estadísticas
+  const estadisticasRes = await obtenerEstadisticasCliente()
+  const stats = estadisticasRes.success ? estadisticasRes.data : {
+    reservas_totales: 0,
+    clases_asistidas: 0,
+    no_shows: 0,
+    creditos_disponibles: 0,
+    proxima_clase: null,
+  }
+
+  const nombrePrimero = profile?.nombre_completo?.split(' ')[0] || 'Cliente'
+
   return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-[#1A1814] mb-2">
-          ¡Bienvenido a STRIVE!
+    <div className="space-y-8">
+      {/* Header */}
+      <div className="border-b border-white/10 bg-black/20 backdrop-blur-sm rounded-2xl p-8">
+        <h1 className="text-4xl font-bold text-white mb-2">
+          ¡Hola, {nombrePrimero}! 💪
         </h1>
-        <p className="text-gray-600">
-          Tu transformación comienza aquí. Explora nuestras clases y reserva tu lugar.
+        <p className="text-white/60">
+          Bienvenido a tu dashboard personal
         </p>
       </div>
 
-      {/* Bienvenida */}
-      <Card padding="lg" shadow="md" className="mb-6">
-        <div className="text-center py-12">
-          <div className="w-24 h-24 mx-auto mb-6 bg-gradient-to-br from-[#AE3F21] to-[#9C7A5E] rounded-full flex items-center justify-center">
-            <svg className="w-12 h-12 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
+      {/* Créditos Destacados */}
+      <div className="bg-gradient-to-br from-[#E84A27] to-[#FF6B35] rounded-2xl p-8 relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
+        <div className="relative z-10">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-white/80 text-sm font-medium uppercase tracking-wider mb-2">
+                Créditos Disponibles
+              </p>
+              <div className="flex items-baseline gap-2">
+                <span className="text-6xl font-bold text-white">
+                  {stats.creditos_disponibles}
+                </span>
+                <span className="text-white/80 text-xl">créditos</span>
+              </div>
+            </div>
+            <Link
+              href="/cliente/paquetes"
+              className="px-6 py-3 bg-white text-[#E84A27] font-semibold rounded-xl hover:bg-white/90 transition-all duration-300 shadow-xl"
+            >
+              Comprar Más
+            </Link>
           </div>
-          <h2 className="text-2xl font-bold text-[#1A1814] mb-3">
-            ¡Tu cuenta está lista!
+          {stats.creditos_disponibles <= 2 && (
+            <p className="text-white/90 text-sm mt-4">
+              ⚠️ Tus créditos están por agotarse. Compra un paquete para continuar reservando.
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Próxima Clase */}
+      {stats.proxima_clase && (
+        <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 hover:border-[#E84A27]/50 transition-all duration-300">
+          <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+            <span>🎯</span>
+            Tu Próxima Clase
           </h2>
-          <p className="text-gray-600 mb-6 max-w-xl mx-auto">
-            Has verificado tu email exitosamente. Ahora puedes empezar a disfrutar de todas las funcionalidades de STRIVE.
+          <div className="grid md:grid-cols-2 gap-6">
+            <div className="space-y-3">
+              <div>
+                <p className="text-white/40 text-sm mb-1">Disciplina</p>
+                <p className="text-white font-semibold text-lg">
+                  {stats.proxima_clase.clase.disciplina.nombre}
+                </p>
+              </div>
+              <div>
+                <p className="text-white/40 text-sm mb-1">Fecha y Hora</p>
+                <p className="text-white font-semibold">
+                  {new Date(stats.proxima_clase.clase.fecha_hora).toLocaleString('es-MX', {
+                    weekday: 'long',
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </p>
+              </div>
+              <div>
+                <p className="text-white/40 text-sm mb-1">Salón</p>
+                <p className="text-white font-semibold">
+                  {stats.proxima_clase.clase.salon.nombre}
+                </p>
+              </div>
+            </div>
+            <div className="space-y-3">
+              {stats.proxima_clase.clase.coach && (
+                <div>
+                  <p className="text-white/40 text-sm mb-1">Coach</p>
+                  <div className="flex items-center gap-3">
+                    {stats.proxima_clase.clase.coach.profiles.foto_url ? (
+                      <img
+                        src={stats.proxima_clase.clase.coach.profiles.foto_url}
+                        alt="Coach"
+                        className="w-10 h-10 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#E84A27] to-[#FF6B35] flex items-center justify-center text-white font-bold">
+                        {stats.proxima_clase.clase.coach.profiles.nombre_completo.charAt(0)}
+                      </div>
+                    )}
+                    <p className="text-white font-semibold">
+                      {stats.proxima_clase.clase.coach.profiles.nombre_completo}
+                    </p>
+                  </div>
+                </div>
+              )}
+              {stats.proxima_clase.espacio && (
+                <div>
+                  <p className="text-white/40 text-sm mb-1">Tu Espacio</p>
+                  <p className="text-white font-semibold">
+                    {stats.proxima_clase.espacio.tipo_equipo} #{stats.proxima_clase.espacio.numero}
+                  </p>
+                </div>
+              )}
+              <div className="pt-4">
+                <Link
+                  href="/cliente/reservas"
+                  className="inline-block px-6 py-3 bg-gradient-to-r from-[#E84A27] to-[#FF6B35] text-white font-semibold rounded-xl hover:shadow-lg hover:shadow-[#E84A27]/50 transition-all duration-300"
+                >
+                  Ver Detalles
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* KPIs */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Total Reservas */}
+        <div className="group relative bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 hover:bg-white/10 hover:border-[#E84A27]/50 transition-all duration-300">
+          <div className="flex items-start justify-between mb-4">
+            <div className="flex-1">
+              <p className="text-white/40 text-sm font-medium uppercase tracking-wider mb-1">
+                Total Reservas
+              </p>
+              <p className="text-4xl font-bold text-white">
+                {stats.reservas_totales}
+              </p>
+            </div>
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#9D4EDD] to-[#FF006E] flex items-center justify-center text-2xl">
+              📅
+            </div>
+          </div>
+          <p className="text-white/60 text-sm">
+            Clases reservadas en total
           </p>
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-[#AE3F21]/10 text-[#AE3F21] rounded-lg">
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <span className="text-sm font-medium">
-              El módulo de reservas estará disponible próximamente
+        </div>
+
+        {/* Clases Asistidas */}
+        <div className="group relative bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 hover:bg-white/10 hover:border-[#FF6B35]/50 transition-all duration-300">
+          <div className="flex items-start justify-between mb-4">
+            <div className="flex-1">
+              <p className="text-white/40 text-sm font-medium uppercase tracking-wider mb-1">
+                Clases Completadas
+              </p>
+              <p className="text-4xl font-bold text-white">
+                {stats.clases_asistidas}
+              </p>
+            </div>
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#FF6B35] to-[#E84A27] flex items-center justify-center text-2xl">
+              ✅
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="flex-1 h-2 bg-white/10 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-[#FF6B35] to-[#E84A27] rounded-full transition-all duration-500"
+                style={{
+                  width: `${stats.reservas_totales > 0 ? (stats.clases_asistidas / stats.reservas_totales) * 100 : 0}%`,
+                }}
+              />
+            </div>
+            <span className="text-white/60 text-sm font-medium">
+              {stats.reservas_totales > 0
+                ? Math.round((stats.clases_asistidas / stats.reservas_totales) * 100)
+                : 0}
+              %
             </span>
           </div>
         </div>
-      </Card>
 
-      {/* Próximas funcionalidades */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card padding="lg" shadow="sm">
-          <CardHeader>
-            <div className="w-12 h-12 bg-[#AE3F21]/10 rounded-lg flex items-center justify-center mb-4">
-              <svg className="w-6 h-6 text-[#AE3F21]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
+        {/* Asistencia */}
+        <div className="group relative bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 hover:bg-white/10 hover:border-[#FF006E]/50 transition-all duration-300">
+          <div className="flex items-start justify-between mb-4">
+            <div className="flex-1">
+              <p className="text-white/40 text-sm font-medium uppercase tracking-wider mb-1">
+                No-Shows
+              </p>
+              <p className="text-4xl font-bold text-white">
+                {stats.no_shows}
+              </p>
             </div>
-            <h3 className="text-lg font-semibold text-[#1A1814]">
-              Reservar Clases
-            </h3>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-gray-600">
-              Explora nuestro calendario y reserva tus clases favoritas de cycling y funcional.
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card padding="lg" shadow="sm">
-          <CardHeader>
-            <div className="w-12 h-12 bg-[#9C7A5E]/10 rounded-lg flex items-center justify-center mb-4">
-              <svg className="w-6 h-6 text-[#9C7A5E]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-              </svg>
-            </div>
-            <h3 className="text-lg font-semibold text-[#1A1814]">
-              Mi Perfil
-            </h3>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-gray-600">
-              Gestiona tu información personal, preferencias y configuración de cuenta.
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card padding="lg" shadow="sm">
-          <CardHeader>
-            <div className="w-12 h-12 bg-[#B39A72]/10 rounded-lg flex items-center justify-center mb-4">
-              <svg className="w-6 h-6 text-[#B39A72]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <h3 className="text-lg font-semibold text-[#1A1814]">
-              Mis Créditos
-            </h3>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-gray-600">
-              Consulta tu saldo de créditos, historial de compras y paquetes disponibles.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Información de desarrollo */}
-      <Card padding="lg" shadow="sm" className="mt-6">
-        <div className="flex items-start gap-4">
-          <div className="text-3xl">🚧</div>
-          <div>
-            <h3 className="font-semibold text-[#1A1814] mb-2">
-              Desarrollo en Progreso - FASE 1 Completada
-            </h3>
-            <p className="text-sm text-gray-600 mb-3">
-              Has completado exitosamente el registro y verificación de email. 
-              Los módulos de reservas, paquetes y más funcionalidades se habilitarán en las siguientes fases.
-            </p>
-            <div className="text-sm text-gray-600 space-y-1">
-              <p>✅ Registro y autenticación completos</p>
-              <p>✅ Verificación de email activa</p>
-              <p>✅ Perfil de cliente creado</p>
-              <p>🔄 Siguiente: FASE 6 - Sistema de Reservas</p>
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#FF006E] to-[#9D4EDD] flex items-center justify-center text-2xl">
+              ⚠️
             </div>
           </div>
+          <p className="text-white/60 text-sm">
+            {stats.no_shows === 0
+              ? '¡Excelente asistencia!'
+              : 'Intenta no faltar a tus clases'}
+          </p>
         </div>
-      </Card>
+      </div>
+
+      {/* Acciones Rápidas */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <Link
+          href="/cliente/clases"
+          className="group relative bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 hover:bg-white/10 hover:border-[#E84A27]/50 transition-all duration-300"
+        >
+          <div className="text-4xl mb-4">🔍</div>
+          <h3 className="text-white font-semibold text-lg mb-2">
+            Explorar Clases
+          </h3>
+          <p className="text-white/60 text-sm">
+            Descubre clases disponibles
+          </p>
+        </Link>
+
+        <Link
+          href="/cliente/reservas"
+          className="group relative bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 hover:bg-white/10 hover:border-[#FF6B35]/50 transition-all duration-300"
+        >
+          <div className="text-4xl mb-4">📋</div>
+          <h3 className="text-white font-semibold text-lg mb-2">
+            Mis Reservas
+          </h3>
+          <p className="text-white/60 text-sm">
+            Gestiona tus reservas
+          </p>
+        </Link>
+
+        <Link
+          href="/cliente/paquetes"
+          className="group relative bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 hover:bg-white/10 hover:border-[#FF006E]/50 transition-all duration-300"
+        >
+          <div className="text-4xl mb-4">💳</div>
+          <h3 className="text-white font-semibold text-lg mb-2">
+            Comprar Paquete
+          </h3>
+          <p className="text-white/60 text-sm">
+            Adquiere más créditos
+          </p>
+        </Link>
+
+        <Link
+          href="/cliente/perfil"
+          className="group relative bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 hover:bg-white/10 hover:border-[#9D4EDD]/50 transition-all duration-300"
+        >
+          <div className="text-4xl mb-4">👤</div>
+          <h3 className="text-white font-semibold text-lg mb-2">
+            Mi Perfil
+          </h3>
+          <p className="text-white/60 text-sm">
+            Actualiza tu información
+          </p>
+        </Link>
+      </div>
     </div>
+  )
+}
+
+// ============================================================================
+// LOADING STATE
+// ============================================================================
+
+function DashboardLoading() {
+  return (
+    <div className="space-y-8">
+      <div className="h-32 bg-white/5 rounded-2xl animate-pulse" />
+      <div className="h-48 bg-white/5 rounded-2xl animate-pulse" />
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {[...Array(3)].map((_, i) => (
+          <div key={i} className="h-32 bg-white/5 rounded-2xl animate-pulse" />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ============================================================================
+// PÁGINA PRINCIPAL
+// ============================================================================
+
+export default function ClienteDashboardPage() {
+  return (
+    <DashboardBackground>
+      <div className="min-h-screen">
+        <div className="max-w-7xl mx-auto px-6 py-8">
+          <Suspense fallback={<DashboardLoading />}>
+            <DashboardContent />
+          </Suspense>
+        </div>
+      </div>
+    </DashboardBackground>
   )
 }
