@@ -4,10 +4,13 @@
 import { useState, useEffect } from 'react'
 import { DashboardBackground } from '@/components/ui/DashboardBackground'
 import { obtenerMisReservas, cancelarReserva } from '@/lib/actions/reservas-actions'
+import { useToast } from '@/hooks/useToast'
 import type { ReservaConRelaciones } from '@/lib/actions/reservas-actions'
 import type { EstadoReserva } from '@/lib/types/enums'
 
 export default function MisReservasPage() {
+  const toast = useToast()
+  
   const [reservas, setReservas] = useState<ReservaConRelaciones[]>([])
   const [cargando, setCargando] = useState(true)
   const [filtroEstado, setFiltroEstado] = useState<'todas' | EstadoReserva>('todas')
@@ -44,10 +47,10 @@ export default function MisReservasPage() {
     const resultado = await cancelarReserva(reservaACancelar.id, razonCancelacion || undefined)
 
     if (resultado.success) {
-      alert(resultado.mensaje)
+      toast.success(resultado.mensaje || 'Reserva cancelada correctamente')
       await cargarReservas()
     } else {
-      alert(resultado.error)
+      toast.error(resultado.error || 'Error al cancelar reserva')
     }
 
     setCancelando(null)
@@ -180,15 +183,16 @@ export default function MisReservasPage() {
                                     <h3 className="text-2xl font-bold text-white mb-1">
                                       {reserva.clase.disciplina.nombre}
                                     </h3>
-                                    <p className="text-white/60 text-sm">
-                                      {reserva.clase.salon.nombre}
-                                      {reserva.espacio && ` • Espacio #${reserva.espacio.numero}`}
-                                    </p>
+                                    {reserva.espacio && (
+                                      <p className="text-white/60 text-sm">
+                                        {reserva.espacio.tipo_equipo} #{reserva.espacio.numero}
+                                      </p>
+                                    )}
                                   </div>
                                   {badgeEstado(reserva.estado)}
                                 </div>
 
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                                   {/* Fecha */}
                                   <div>
                                     <p className="text-white/40 text-xs mb-1">Fecha</p>
